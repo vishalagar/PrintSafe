@@ -1,0 +1,211 @@
+@import "tailwindcss";
+
+/* ═══════════════════════════════════════════════════
+   PRINTSAFE — DESIGN TOKENS
+   Sky #8EC6E8 · Yellow #F5C518 · White #FFFFFF · Black #0D0D0D
+═══════════════════════════════════════════════════ */
+
+:root {
+  --bg:             #8EC6E8;
+  --surface:        #FFFFFF;
+  --surface2:       #EFF7FF;
+  --surface3:       #D8EDFF;
+
+  --text:           #0D0D0D;
+  --text-mid:       #1C1C1C;
+  --text-dim:       #555555;
+
+  --yellow:         #F5C518;
+  --yellow-dim:     rgba(245, 197, 24, 0.14);
+  --yellow-hover:   #E0B010;
+
+  --green:          #F5C518;
+  --green-dim:      rgba(245, 197, 24, 0.14);
+  --green-border:   rgba(245, 197, 24, 0.55);
+
+  --blue:           #1A6FA8;
+  --blue-dim:       rgba(26, 111, 168, 0.08);
+  --blue-border:    rgba(26, 111, 168, 0.28);
+
+  --orange:         #D47035;
+  --orange-dim:     rgba(212, 112, 53, 0.10);
+  --orange-border:  rgba(212, 112, 53, 0.32);
+
+  --red:            #D6384A;
+  --red-dim:        rgba(214, 56, 74, 0.08);
+  --red-border:     rgba(214, 56, 74, 0.26);
+
+  --amber:          #F59E0B;
+  --amber-dim:      rgba(245, 158, 11, 0.12);
+
+  --grid-col:       rgba(255, 255, 255, 0.35);
+
+  /* Neo-brutalist: hard offset, no blur */
+  --shadow:         5px 5px 0 #0D0D0D;
+  --shadow-sm:      3px 3px 0 #0D0D0D;
+  --shadow-xs:      2px 2px 0 #0D0D0D;
+}
+
+/* ═══════════════════════════════════════════════════
+   TAILWIND V4 THEME REGISTRATION
+═══════════════════════════════════════════════════ */
+
+@theme inline {
+  --color-bg:        var(--bg);
+  --color-surface:   var(--surface);
+  --color-surface2:  var(--surface2);
+  --color-surface3:  var(--surface3);
+  --color-text:      var(--text);
+  --color-text-mid:  var(--text-mid);
+  --color-text-dim:  var(--text-dim);
+  --color-yellow:    var(--yellow);
+  --color-red:       var(--red);
+  --color-blue:      var(--blue);
+  --color-orange:    var(--orange);
+  --color-amber:     var(--amber);
+
+  --font-sans:       'DM Sans', -apple-system, sans-serif;
+  --font-serif:      'Fraunces', Georgia, serif;
+  --font-mono:       'JetBrains Mono', 'Courier New', monospace;
+}
+
+/* ═══════════════════════════════════════════════════
+   RESET & BASE
+═══════════════════════════════════════════════════ */
+
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  line-height: 1.75;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ═══════════════════════════════════════════════════
+   WHITE GRID BACKGROUND
+═══════════════════════════════════════════════════ */
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--grid-col) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-col) 1px, transparent 1px);
+  background-size: 44px 44px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ═══════════════════════════════════════════════════
+   SHADOW UTILITIES
+═══════════════════════════════════════════════════ */
+
+.shadow-brutal    { box-shadow: var(--shadow); }
+.shadow-brutal-sm { box-shadow: var(--shadow-sm); }
+.shadow-brutal-xs { box-shadow: var(--shadow-xs); }
+
+/* ═══════════════════════════════════════════════════
+   ANIMATIONS
+═══════════════════════════════════════════════════ */
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.15; }
+}
+
+@keyframes pulse-dot {
+  0%, 100% { transform: scale(1); }
+  50%       { transform: scale(1.3); }
+}
+
+@keyframes ring-in {
+  from { transform: scale(0.5); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}
+
+/* ═══════════════════════════════════════════════════
+   LAYOUT UTILITIES
+═══════════════════════════════════════════════════ */
+
+.wrap {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 0 24px;
+  position: relative;
+  z-index: 1;
+}
+
+/* ═══════════════════════════════════════════════════
+   BUTTON VARIANTS
+═══════════════════════════════════════════════════ */
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 28px;
+  background: var(--yellow);
+  color: #0D0D0D;
+  font-weight: 700;
+  font-size: 15px;
+  border-radius: 8px;
+  border: 2px solid #0D0D0D;
+  cursor: pointer;
+  text-decoration: none;
+  box-shadow: 4px 4px 0 #0D0D0D;
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.btn-primary:hover  { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 #0D0D0D; }
+.btn-primary:active { transform: translate(2px, 2px);   box-shadow: 2px 2px 0 #0D0D0D; }
+.btn-primary:disabled { opacity: 0.55; cursor: not-allowed; transform: none; box-shadow: 4px 4px 0 #0D0D0D; }
+
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 24px;
+  background: #FFFFFF;
+  color: #0D0D0D;
+  font-weight: 700;
+  font-size: 15px;
+  border-radius: 8px;
+  border: 2px solid #0D0D0D;
+  cursor: pointer;
+  text-decoration: none;
+  box-shadow: 4px 4px 0 #0D0D0D;
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.btn-ghost:hover  { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 #0D0D0D; background: var(--surface2); }
+.btn-ghost:active { transform: translate(2px, 2px);   box-shadow: 2px 2px 0 #0D0D0D; }
+
+/* ═══════════════════════════════════════════════════
+   PRINT STYLES — hide UI chrome when printing
+═══════════════════════════════════════════════════ */
+
+@media print {
+  .no-print { display: none !important; }
+  body::before { display: none; }
+}
