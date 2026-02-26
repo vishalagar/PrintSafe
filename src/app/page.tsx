@@ -28,6 +28,8 @@ const MIME_LABEL: Record<string, string> = {
   'application/pdf': 'PDF',
   'image/jpeg': 'JPG',
   'image/png': 'PNG',
+  'image/heic': 'HEIC',
+  'image/heif': 'HEIF',
 }
 
 const ALLOWED_MIMES = Object.keys(MIME_LABEL)
@@ -37,6 +39,8 @@ const EXT_TO_MIME: Record<string, string> = {
   jpg:  'image/jpeg',
   jpeg: 'image/jpeg',
   png:  'image/png',
+  heic: 'image/heic',
+  heif: 'image/heif',
 }
 
 function getEffectiveMime(file: File): string {
@@ -171,7 +175,7 @@ export default function UploadPage() {
           </div>
 
           {/* Drop zone */}
-          <input ref={inputRef} type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }} style={{ display: 'none' }} />
+          <input ref={inputRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,.heif" onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }} style={{ display: 'none' }} />
           <div
             onClick={() => !file && inputRef.current?.click()}
             onDrop={onDrop}
@@ -209,7 +213,7 @@ export default function UploadPage() {
           {/* File chips */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 24, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 11, color: 'var(--text-dim)', marginRight: 4, fontWeight: 500 }}>Accepted:</span>
-            {['PDF', 'JPG', 'PNG'].map(t => (
+            {['PDF', 'JPG', 'PNG', 'HEIC'].map(t => (
               <span key={t} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: '1px', textTransform: 'uppercase', fontWeight: 700, background: '#FFFFFF', border: '1.5px solid #0D0D0D', padding: '3px 9px', borderRadius: 5, boxShadow: '1px 1px 0 #0D0D0D' }}>{t}</span>
             ))}
             <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>· up to 25 MB</span>

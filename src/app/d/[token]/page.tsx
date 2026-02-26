@@ -125,7 +125,7 @@ export default function DocumentViewer() {
 
   // ── Ready ──
   const isPDF   = mimeType === 'application/pdf'
-  const isImage = mimeType === 'image/jpeg' || mimeType === 'image/png'
+  const isImage = mimeType.startsWith('image/')
 
   function handlePrint() {
     if (!blobUrl) return

@@ -1,7 +1,7 @@
 'use client'
 import posthog from 'posthog-js'
 
-export type FileType = 'pdf' | 'jpg' | 'png' | 'unknown'
+export type FileType = 'pdf' | 'jpg' | 'png' | 'heic' | 'unknown'
 export type FileSizeBucket = 'small' | 'medium' | 'large'
 export type TtlLabel = 'view-once' | '15min' | '30min' | '1hr'
 
@@ -9,6 +9,7 @@ export function mimeToFileType(mime: string): FileType {
   if (mime === 'application/pdf') return 'pdf'
   if (mime === 'image/jpeg') return 'jpg'
   if (mime === 'image/png') return 'png'
+  if (mime === 'image/heic' || mime === 'image/heif') return 'heic'
   return 'unknown'
 }
 
