@@ -125,10 +125,10 @@ export default function UploadPage() {
       {/* ── NAV ── */}
       <nav style={{ position: 'sticky', top: 0, zIndex: 1000, background: '#FFFFFF', borderBottom: '2px solid #0D0D0D', padding: '0 24px' }}>
         <div style={{ maxWidth: 920, margin: '0 auto', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+          <a href="/" style={{ display: 'flex', alignItems: 'center', gap: 9, textDecoration: 'none', color: 'inherit' }}>
             <span style={{ fontFamily: "'Fraunces', serif", fontWeight: 900, fontSize: 20, letterSpacing: '-0.5px' }}>PrintSafe</span>
             <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--yellow)', border: '1.5px solid #0D0D0D', display: 'inline-block', animation: 'pulse-dot 3s ease-in-out infinite' }} />
-          </div>
+          </a>
           <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: '1.5px', textTransform: 'uppercase', fontWeight: 700, background: 'var(--yellow)', border: '2px solid #0D0D0D', padding: '4px 10px', borderRadius: 6, boxShadow: 'var(--shadow-xs)' }}>
             Personal
           </span>

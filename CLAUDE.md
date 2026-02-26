@@ -23,8 +23,6 @@ supabase start       # Start local Supabase
 supabase db push     # Push schema migrations
 supabase gen types typescript --local > src/lib/database.types.ts
 
-# Preview sample
-open index.html      # Open static design sample in browser (no build needed)
 ```
 
 ---
@@ -55,7 +53,7 @@ open index.html      # Open static design sample in browser (no build needed)
 
 | Layer | Tool |
 |-------|------|
-| Frontend | Next.js 14+ App Router, React, Tailwind CSS |
+| Frontend | Next.js 16 App Router, React, Tailwind CSS |
 | Backend | Next.js API Routes (serverless — no separate server) |
 | Database | Supabase (PostgreSQL + Auth + Realtime) |
 | File Storage | Cloudflare R2 (encrypted blobs, zero egress) |
@@ -102,8 +100,8 @@ pending → viewed → deleted
 
 ## Development Phases
 
-- **Phase 1** ← **current**: Personal Mode MVP. Upload · encrypt · one-time link · view · auto-delete. No auth.
-- **Phase 2**: Security hardening — rate limits, CAPTCHA, cron cleanup
+- **Phase 1** ✅ COMPLETE: Personal Mode MVP. Upload · encrypt · one-time link · view · auto-delete. No auth.
+- **Phase 2** ← **current**: Security hardening — rate limits, CAPTCHA, cron cleanup
 - **Phase 3**: Commercial Mode — shop auth, branded pages, live dashboard, WebSocket/SSE
 - **Phase 4**: Polish & scale
 
