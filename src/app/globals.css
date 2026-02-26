@@ -202,10 +202,23 @@ body::before {
 .btn-ghost:active { transform: translate(2px, 2px);   box-shadow: 2px 2px 0 #0D0D0D; }
 
 /* ═══════════════════════════════════════════════════
+   PDF VIEWER — strip react-pdf injected canvas decoration
+═══════════════════════════════════════════════════ */
+
+.react-pdf__Page canvas,
+.react-pdf__Page {
+  box-shadow: none !important;
+  border: none !important;
+  outline: none !important;
+}
+
+/* ═══════════════════════════════════════════════════
    PRINT STYLES — hide UI chrome when printing
 ═══════════════════════════════════════════════════ */
 
 @media print {
   .no-print { display: none !important; }
-  body::before { display: none; }
+  body { background: #ffffff !important; }
+  body::before { display: none !important; }
+  img { max-width: 100% !important; page-break-inside: avoid; }
 }

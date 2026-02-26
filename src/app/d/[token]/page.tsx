@@ -125,8 +125,43 @@ export default function DocumentViewer() {
   const isPDF   = mimeType === 'application/pdf'
   const isImage = mimeType === 'image/jpeg' || mimeType === 'image/png'
 
+  function handlePrint() {
+    if (!blobUrl) return
+
+    const frame = document.createElement('iframe')
+    frame.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none'
+    document.body.appendChild(frame)
+
+    const cleanup = () => {
+      if (document.body.contains(frame)) document.body.removeChild(frame)
+      window.removeEventListener('afterprint', cleanup)
+    }
+    window.addEventListener('afterprint', cleanup)
+
+    if (isPDF) {
+      // PDF: let the browser's native PDF viewer handle all pages
+      frame.src = blobUrl
+      frame.onload = () => frame.contentWindow?.print()
+    } else {
+      // Image: write a custom page so the image always fills exactly one printed page
+      const doc = frame.contentDocument!
+      doc.open()
+      doc.write(`<!DOCTYPE html><html><head><style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        @page { margin: 0; size: auto; }
+        html, body { width: 100%; height: 100%; background: #fff; }
+        body { display: flex; align-items: center; justify-content: center; }
+        img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
+      </style></head><body>
+        <img src="${blobUrl}" onload="window.print()">
+      </body></html>`)
+      doc.close()
+    }
+  }
+
   return (
-    <div style={{ minHeight: '100vh', paddingBottom: 80 }}>
+    // position: relative + zIndex: 1 ensures content stacks above the body::before grid overlay (fixed, z-index: 0)
+    <div style={{ minHeight: '100vh', paddingBottom: 80, position: 'relative', zIndex: 1 }}>
 
       {/* Amber security banner */}
       <div
@@ -145,7 +180,7 @@ export default function DocumentViewer() {
             <img
               src={blobUrl}
               alt="Document"
-              style={{ maxWidth: '100%', border: '2px solid #0D0D0D', borderRadius: 12, boxShadow: 'var(--shadow)', userSelect: 'none', pointerEvents: 'none' }}
+              style={{ maxWidth: '100%', userSelect: 'none', pointerEvents: 'none', display: 'block', margin: '0 auto' }}
               onContextMenu={e => e.preventDefault()}
               draggable={false}
             />
@@ -156,7 +191,7 @@ export default function DocumentViewer() {
       {/* Sticky print button */}
       <div className="no-print" style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 200 }}>
         <button
-          onClick={() => window.print()}
+          onClick={handlePrint}
           style={{ padding: '14px 22px', background: 'var(--yellow)', border: '2px solid #0D0D0D', borderRadius: 12, fontWeight: 700, fontSize: 15, cursor: 'pointer', boxShadow: 'var(--shadow)', display: 'flex', alignItems: 'center', gap: 8, color: '#0D0D0D' }}
         >
           🖨 Print
