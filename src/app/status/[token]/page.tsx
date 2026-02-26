@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { useParams } from 'next/navigation'
+import { capture } from '@/lib/analytics'
 
 type DocStatus = 'pending' | 'viewed' | 'deleted' | 'expired'
 
@@ -118,6 +119,7 @@ export default function StatusPage() {
         throw new Error(j.error ?? 'Delete failed. Please try again.')
       }
       setShowConfirm(false)
+      capture('ManualDelete')
       if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
       if (countdownRef.current) { clearInterval(countdownRef.current); countdownRef.current = null }
       setData(prev => prev ? { ...prev, status: 'deleted' } : prev)

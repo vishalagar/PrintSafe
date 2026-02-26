@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient, DocumentRow } from '@/lib/supabase'
 import { deleteR2Object } from '@/lib/r2'
+import { trackServerEvent } from '@/lib/analytics-server'
 
 // POST /api/cron/cleanup
 // Purges expired (never-opened) and stale viewed docs from R2.
@@ -35,6 +36,7 @@ export async function POST(req: NextRequest) {
           .update({ status: 'expired' })
           .eq('id', doc.id)
         purged++
+        void trackServerEvent('DocumentExpired')
       } catch {
         failed++
       }
@@ -64,6 +66,7 @@ export async function POST(req: NextRequest) {
           .update({ status: 'deleted' })
           .eq('id', doc.id)
         purged++
+        void trackServerEvent('DocumentDeleted')
       } catch {
         failed++
       }

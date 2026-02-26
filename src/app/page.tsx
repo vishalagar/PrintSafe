@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import { capture, mimeToFileType, sizeToFileSizeBucket, ttlToLabel } from '@/lib/analytics'
 
 const EXPIRY_OPTIONS = [
   { label: 'View once', ttl: 0 },
@@ -65,6 +66,7 @@ export default function UploadPage() {
       return
     }
     setFile(f)
+    capture('FileSelected', { fileType: mimeToFileType(getEffectiveMime(f)), fileSizeBucket: sizeToFileSizeBucket(f.size) })
   }, [])
 
   const onDrop = useCallback((e: React.DragEvent) => {
@@ -76,8 +78,10 @@ export default function UploadPage() {
 
   async function handleUpload() {
     if (!file || isUploading) return
+    let errorTracked = false
     setIsUploading(true)
     setError(null)
+    capture('UploadStarted', { fileType: mimeToFileType(getEffectiveMime(file)), ttlLabel: ttlToLabel(ttl) })
     try {
       const { encryptFile, keyToBase64url } = await import('@/lib/crypto')
       const { ciphertext, iv, key } = await encryptFile(file)
@@ -98,6 +102,8 @@ export default function UploadPage() {
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
+        capture('UploadError', { reason: res.status === 429 ? 'ratelimit' : 'api' })
+        errorTracked = true
         throw new Error(res.status === 429
           ? 'Too many uploads — please try again in an hour.'
           : (data.error ?? 'Upload failed. Please try again.'))
@@ -105,6 +111,7 @@ export default function UploadPage() {
 
       const { token, deleteToken } = await res.json()
       const keyStr = await keyToBase64url(key)
+      capture('UploadSuccess', { fileType: mimeToFileType(effectiveMime), ttlLabel: ttlToLabel(ttl) })
 
       sessionStorage.setItem('ps_upload', JSON.stringify({
         token, deleteToken, key: keyStr,
@@ -114,6 +121,7 @@ export default function UploadPage() {
 
       router.push('/share')
     } catch (err: unknown) {
+      if (!errorTracked) capture('UploadError', { reason: 'encryption' })
       setError(err instanceof Error ? err.message : 'Something went wrong.')
       setIsUploading(false)
     }

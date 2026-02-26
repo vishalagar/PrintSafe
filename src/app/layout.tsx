@@ -1,5 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import { Providers } from './providers'
+import { Analytics } from '@vercel/analytics/react'
 
 export const metadata: Metadata = {
   title: 'PrintSafe — Self-Destructing Documents',
@@ -20,7 +22,10 @@ export default function RootLayout({
         />
       </head>
       <body className="antialiased">
-        {children}
+        <Providers>
+          {children}
+        </Providers>
+        <Analytics />
       </body>
     </html>
   )

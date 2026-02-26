@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { useParams } from 'next/navigation'
+import { capture, mimeToFileType } from '@/lib/analytics'
 
 type ViewState = 'loading' | 'decrypting' | 'ready' | 'already-opened' | 'error'
 
@@ -57,6 +58,7 @@ export default function DocumentViewer() {
         const url = URL.createObjectURL(blob)
         setBlobUrl(url)
         setViewState('ready')
+        capture('DocumentViewed', { fileType: mimeToFileType(mime) })
       } catch (err) {
         setErrorMsg(err instanceof Error ? err.message : 'Failed to load document.')
         setViewState('error')
@@ -127,6 +129,7 @@ export default function DocumentViewer() {
 
   function handlePrint() {
     if (!blobUrl) return
+    capture('DocumentPrinted', { fileType: mimeToFileType(mimeType) })
 
     const frame = document.createElement('iframe')
     frame.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none'
