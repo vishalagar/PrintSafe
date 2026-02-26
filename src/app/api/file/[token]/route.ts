@@ -57,10 +57,16 @@ export async function GET(req: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'File not found in storage' }, { status: 404 })
     }
 
-    return new NextResponse(bytes.buffer as ArrayBuffer, {
+    // Use ArrayBuffer.slice() to get a fresh ArrayBuffer with only the ciphertext bytes.
+    // bytes.buffer is the Node.js memory pool (byteLength up to 8192) when Buffer.concat
+    // uses the pool for small files. bytes.byteOffset marks where the real data starts.
+    // Sending bytes.buffer directly would transmit pool garbage instead of the ciphertext,
+    // causing AES-GCM decryption to fail on the client for small files (< ~4 KB).
+    const safeBuffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
+    return new NextResponse(safeBuffer, {
       headers: {
         'Content-Type': 'application/octet-stream',
-        'Content-Length': String(bytes.length),
+        'Content-Length': String(bytes.byteLength),
         'Cache-Control': 'no-store, no-cache',
       },
     })

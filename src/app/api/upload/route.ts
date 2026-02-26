@@ -9,7 +9,6 @@ const ALLOWED_MIMES = [
   'application/pdf',
   'image/jpeg',
   'image/png',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 ]
 
 const MAX_FILE_SIZE = 26_214_400 // 25 MB
@@ -32,34 +31,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
   }
 
-  // 2. Parse formData
-  let formData: FormData
-  try {
-    formData = await req.formData()
-  } catch {
-    return NextResponse.json({ error: 'Invalid form data' }, { status: 400 })
-  }
-
-  const ciphertextBlob = formData.get('ciphertext')
-  const iv = formData.get('iv')
-  const fileName = formData.get('fileName')
-  const fileSizeRaw = formData.get('fileSize')
-  const mimeType = formData.get('mimeType')
-  const ttlAfterViewRaw = formData.get('ttlAfterView')
+  // 2. Read metadata from headers (avoids multipart/formData parsing issues)
+  const iv             = req.headers.get('x-iv')
+  const fileNameRaw    = req.headers.get('x-filename')
+  const fileSizeRaw    = req.headers.get('x-filesize')
+  const mimeType       = req.headers.get('x-mimetype')
+  const ttlAfterViewRaw = req.headers.get('x-ttl')
 
   // 3. Validate presence
-  if (
-    !(ciphertextBlob instanceof Blob) ||
-    typeof iv !== 'string' ||
-    typeof fileName !== 'string' ||
-    typeof fileSizeRaw !== 'string' ||
-    typeof mimeType !== 'string' ||
-    typeof ttlAfterViewRaw !== 'string'
-  ) {
+  if (!iv || !fileNameRaw || !fileSizeRaw || !mimeType || !ttlAfterViewRaw) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
   }
 
-  const fileSize = parseInt(fileSizeRaw, 10)
+  const fileName    = decodeURIComponent(fileNameRaw)
+  const fileSize    = parseInt(fileSizeRaw, 10)
   const ttlAfterView = parseInt(ttlAfterViewRaw, 10)
 
   if (!ALLOWED_MIMES.includes(mimeType)) {
@@ -74,36 +59,37 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid TTL' }, { status: 400 })
   }
 
-  if (!iv || iv.length === 0) {
-    return NextResponse.json({ error: 'Missing IV' }, { status: 400 })
-  }
-
   // Sanitize fileName — strip path components, keep only the base name
   const safeFileName = fileName.replace(/[^a-zA-Z0-9._\-\s]/g, '').trim().slice(0, 255) || 'document'
 
-  // 4. Generate identifiers — storageKey is always an opaque UUID
-  const storageKey = crypto.randomUUID()
-  const token = nanoid(21)
-  const deleteToken = nanoid(21)
-
-  // 5. Upload to R2
+  // 4. Read ciphertext from request body
   let buffer: Buffer
   try {
-    buffer = Buffer.from(await ciphertextBlob.arrayBuffer())
+    buffer = Buffer.from(await req.arrayBuffer())
   } catch {
     return NextResponse.json({ error: 'Failed to read file data' }, { status: 400 })
   }
 
+  if (buffer.length === 0) {
+    return NextResponse.json({ error: 'Empty file data' }, { status: 400 })
+  }
+
+  // 5. Generate identifiers — storageKey is always an opaque UUID
+  const storageKey  = crypto.randomUUID()
+  const token       = nanoid(21)
+  const deleteToken = nanoid(21)
+
+  // 6. Upload to R2
   try {
     await uploadEncryptedBlob(storageKey, buffer, 'application/octet-stream')
   } catch {
     return NextResponse.json({ error: 'Storage upload failed' }, { status: 500 })
   }
 
-  // 6. Hash IP — store only the hash, never the raw IP
+  // 7. Hash IP — store only the hash, never the raw IP
   const ipHash = createHash('sha256').update(ip).digest('hex')
 
-  // 7. Insert into Supabase
+  // 8. Insert into Supabase
   const supabase = createServerSupabaseClient()
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
 

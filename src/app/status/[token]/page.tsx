@@ -247,6 +247,22 @@ export default function StatusPage() {
             </button>
           )}
 
+          {/* Navigation buttons */}
+          <div style={{ display: 'flex', gap: 10, paddingTop: 8, animation: 'fade-up 0.5s 0.25s ease both' }}>
+            <a
+              href="/share"
+              style={{ flex: 1, padding: '12px 16px', background: 'var(--surface)', border: '2px solid #0D0D0D', borderRadius: 10, fontWeight: 700, fontSize: 13, color: '#0D0D0D', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, boxShadow: 'var(--shadow-sm)' }}
+            >
+              ← Back to share
+            </a>
+            <a
+              href="/"
+              style={{ flex: 1, padding: '12px 16px', background: 'var(--surface2)', border: '2px solid #0D0D0D', borderRadius: 10, fontWeight: 700, fontSize: 13, color: 'var(--text-dim)', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+            >
+              Upload another
+            </a>
+          </div>
+
         </div>
       </div>
 

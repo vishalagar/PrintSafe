@@ -27,10 +27,22 @@ const MIME_LABEL: Record<string, string> = {
   'application/pdf': 'PDF',
   'image/jpeg': 'JPG',
   'image/png': 'PNG',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'DOCX',
 }
 
 const ALLOWED_MIMES = Object.keys(MIME_LABEL)
+
+const EXT_TO_MIME: Record<string, string> = {
+  pdf:  'application/pdf',
+  jpg:  'image/jpeg',
+  jpeg: 'image/jpeg',
+  png:  'image/png',
+}
+
+function getEffectiveMime(file: File): string {
+  if (file.type && ALLOWED_MIMES.includes(file.type)) return file.type
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
+  return EXT_TO_MIME[ext] ?? file.type
+}
 
 export default function UploadPage() {
   const router = useRouter()
@@ -48,8 +60,8 @@ export default function UploadPage() {
       setError('File is too large — maximum size is 25 MB.')
       return
     }
-    if (!ALLOWED_MIMES.includes(f.type)) {
-      setError('Unsupported file type. Please upload a PDF, JPG, PNG, or DOCX.')
+    if (!ALLOWED_MIMES.includes(getEffectiveMime(f))) {
+      setError('Unsupported file type. Please upload a PDF, JPG, or PNG.')
       return
     }
     setFile(f)
@@ -70,15 +82,20 @@ export default function UploadPage() {
       const { encryptFile, keyToBase64url } = await import('@/lib/crypto')
       const { ciphertext, iv, key } = await encryptFile(file)
 
-      const fd = new FormData()
-      fd.append('ciphertext', new Blob([ciphertext], { type: 'application/octet-stream' }))
-      fd.append('iv', iv)
-      fd.append('fileName', file.name)
-      fd.append('fileSize', String(file.size))
-      fd.append('mimeType', file.type)
-      fd.append('ttlAfterView', String(ttl))
+      const effectiveMime = getEffectiveMime(file)
 
-      const res = await fetch('/api/upload', { method: 'POST', body: fd })
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/octet-stream',
+          'x-iv':       iv,
+          'x-filename': encodeURIComponent(file.name),
+          'x-filesize': String(file.size),
+          'x-mimetype': effectiveMime,
+          'x-ttl':      String(ttl),
+        },
+        body: ciphertext,
+      })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
         throw new Error(res.status === 429
@@ -146,7 +163,7 @@ export default function UploadPage() {
           </div>
 
           {/* Drop zone */}
-          <input ref={inputRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.docx" onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }} style={{ display: 'none' }} />
+          <input ref={inputRef} type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }} style={{ display: 'none' }} />
           <div
             onClick={() => !file && inputRef.current?.click()}
             onDrop={onDrop}
@@ -173,7 +190,7 @@ export default function UploadPage() {
                   <p style={{ fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.name}</p>
                   <p style={{ fontSize: 12, color: 'var(--text-dim)', display: 'flex', gap: 8, alignItems: 'center', marginTop: 2 }}>
                     <span>{formatBytes(file.size)}</span>
-                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: '1px', textTransform: 'uppercase', background: 'var(--yellow)', border: '1.5px solid #0D0D0D', padding: '1px 6px', borderRadius: 4, color: '#0D0D0D', fontWeight: 700 }}>{MIME_LABEL[file.type] ?? 'FILE'}</span>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: '1px', textTransform: 'uppercase', background: 'var(--yellow)', border: '1.5px solid #0D0D0D', padding: '1px 6px', borderRadius: 4, color: '#0D0D0D', fontWeight: 700 }}>{MIME_LABEL[getEffectiveMime(file)] ?? 'FILE'}</span>
                   </p>
                 </div>
                 <button onClick={e => { e.stopPropagation(); setFile(null); setError(null) }} style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--red-dim)', border: '2px solid var(--red)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: 'var(--red)', flexShrink: 0, minWidth: 28 }}>✕</button>
@@ -184,7 +201,7 @@ export default function UploadPage() {
           {/* File chips */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 24, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 11, color: 'var(--text-dim)', marginRight: 4, fontWeight: 500 }}>Accepted:</span>
-            {['PDF', 'JPG', 'PNG', 'DOCX'].map(t => (
+            {['PDF', 'JPG', 'PNG'].map(t => (
               <span key={t} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: '1px', textTransform: 'uppercase', fontWeight: 700, background: '#FFFFFF', border: '1.5px solid #0D0D0D', padding: '3px 9px', borderRadius: 5, boxShadow: '1px 1px 0 #0D0D0D' }}>{t}</span>
             ))}
             <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>· up to 25 MB</span>

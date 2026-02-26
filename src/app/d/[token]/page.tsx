@@ -122,7 +122,8 @@ export default function DocumentViewer() {
   }
 
   // ── Ready ──
-  const isPDF = mimeType === 'application/pdf'
+  const isPDF   = mimeType === 'application/pdf'
+  const isImage = mimeType === 'image/jpeg' || mimeType === 'image/png'
 
   return (
     <div style={{ minHeight: '100vh', paddingBottom: 80 }}>
@@ -139,7 +140,7 @@ export default function DocumentViewer() {
       <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 16px' }}>
         {isPDF && blobUrl ? (
           <PDFViewer blobUrl={blobUrl} />
-        ) : blobUrl ? (
+        ) : isImage && blobUrl ? (
           <div style={{ textAlign: 'center' }}>
             <img
               src={blobUrl}

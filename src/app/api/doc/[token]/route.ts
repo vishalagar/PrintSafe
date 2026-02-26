@@ -29,8 +29,11 @@ export async function GET(req: NextRequest, context: RouteContext) {
 
   const doc = docData as DocumentRow
 
-  // 2. Status gate
-  if (doc.status === 'deleted' || doc.status === 'expired') {
+  // 2. Status gate — includes 'viewed' to enforce one-time access.
+  // The file proxy (/api/file/:token) still allows 'viewed' status so the
+  // legitimate viewer can fetch the ciphertext after this call marks the doc.
+  // Any subsequent /api/doc call (refresh, second person) gets 410.
+  if (doc.status === 'deleted' || doc.status === 'expired' || doc.status === 'viewed') {
     return NextResponse.json({ error: 'gone' }, { status: 410 })
   }
 
