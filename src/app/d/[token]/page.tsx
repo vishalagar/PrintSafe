@@ -54,7 +54,31 @@ export default function DocumentViewer() {
         const key = await base64urlToKey(keyStr)
         const plaintext = await decryptFile(ciphertext, key, iv)
 
-        const blob = new Blob([plaintext], { type: mime })
+        // Convert HEIC/HEIF → JPEG for cross-browser display
+        // Adding .heic to the file input's accept attribute tells iOS to stop
+        // auto-converting to JPEG — raw HEIC arrives but Chrome/Firefox can't
+        // render it. Convert here so all browsers see a standard JPEG blob.
+        let displayMime = mime
+        let displayBytes: ArrayBuffer = plaintext
+
+        if (mime === 'image/heic' || mime === 'image/heif') {
+          try {
+            const heic2any = (await import('heic2any')).default
+            const converted = await heic2any({
+              blob: new Blob([plaintext], { type: mime }),
+              toType: 'image/jpeg',
+              quality: 0.92,
+            }) as Blob
+            displayBytes = await converted.arrayBuffer()
+            displayMime = 'image/jpeg'
+          } catch {
+            // Conversion failed — fall through with original bytes
+            // Safari can still display native HEIC natively
+          }
+        }
+
+        setMimeType(displayMime)
+        const blob = new Blob([displayBytes], { type: displayMime })
         const url = URL.createObjectURL(blob)
         setBlobUrl(url)
         setViewState('ready')
@@ -142,9 +166,16 @@ export default function DocumentViewer() {
     window.addEventListener('afterprint', cleanup)
 
     if (isPDF) {
-      // PDF: let the browser's native PDF viewer handle all pages
-      frame.src = blobUrl
-      frame.onload = () => frame.contentWindow?.print()
+      // Open PDF in new tab — contentWindow.print() on a hidden iframe doesn't
+      // work on Chrome/Safari (PDF plugin can't init in 1×1px) and falls through
+      // to parent window.print(), printing the app page instead of the document.
+      document.body.removeChild(frame)
+      window.removeEventListener('afterprint', cleanup)
+      const popup = window.open(blobUrl, '_blank')
+      if (popup) {
+        popup.addEventListener('load', () => setTimeout(() => popup.print(), 500))
+      }
+      return
     } else {
       // Image: write a custom page so the image always fills exactly one printed page
       const doc = frame.contentDocument!

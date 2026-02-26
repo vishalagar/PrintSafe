@@ -103,6 +103,7 @@ export default function StatusPage() {
 
   async function handleDelete() {
     const deleteToken = localStorage.getItem(`ps_del_${token}`)
+      ?? sessionStorage.getItem(`ps_del_${token}`)
     if (!deleteToken) {
       setDeleteError('Delete token not found. You can only delete from the browser where you originally uploaded the document.')
       return

@@ -17,6 +17,7 @@ export default function SharePage() {
   const [shareUrl, setShareUrl] = useState('')
   const [qrDataUrl, setQrDataUrl] = useState('')
   const [copied, setCopied] = useState(false)
+  const [copyFailed, setCopyFailed] = useState(false)
 
   useEffect(() => {
     const raw = sessionStorage.getItem('ps_upload')
@@ -31,8 +32,13 @@ export default function SharePage() {
       const url = `${window.location.origin}/d/${parsed.token}#${parsed.key}`
       setShareUrl(url)
 
-      // Save delete token to localStorage for status page
-      localStorage.setItem(`ps_del_${parsed.token}`, parsed.deleteToken)
+      // Save delete token for status page.
+      // Falls back to sessionStorage in Safari Private (localStorage.setItem throws).
+      try {
+        localStorage.setItem(`ps_del_${parsed.token}`, parsed.deleteToken)
+      } catch {
+        sessionStorage.setItem(`ps_del_${parsed.token}`, parsed.deleteToken)
+      }
 
       // Generate QR code
       import('qrcode').then(({ default: QRCode }) => {
@@ -53,7 +59,21 @@ export default function SharePage() {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
-      // fallback: already selected via click on input
+      // Fallback: execCommand via temporary textarea (deprecated but widely supported)
+      try {
+        const ta = document.createElement('textarea')
+        ta.value = shareUrl
+        ta.style.cssText = 'position:fixed;opacity:0'
+        document.body.appendChild(ta)
+        ta.select()
+        document.execCommand('copy')
+        document.body.removeChild(ta)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      } catch {
+        setCopyFailed(true)
+        setTimeout(() => setCopyFailed(false), 3000)
+      }
     }
   }
 
@@ -114,6 +134,11 @@ export default function SharePage() {
                 {copied ? '✓ Copied!' : 'Copy'}
               </button>
             </div>
+            {copyFailed && (
+              <p style={{ marginTop: 8, fontSize: 12, color: 'var(--red)', fontWeight: 600 }}>
+                Copy failed — select the link above manually.
+              </p>
+            )}
           </div>
 
           {/* QR code card */}

@@ -25,6 +25,7 @@
     "radix-ui": "^1.4.3",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "heic2any": "^0.0.4",
     "react-pdf": "^10.4.0",
     "tailwind-merge": "^3.5.0"
   },

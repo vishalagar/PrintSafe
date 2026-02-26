@@ -202,6 +202,16 @@ body::before {
 .btn-ghost:active { transform: translate(2px, 2px);   box-shadow: 2px 2px 0 #0D0D0D; }
 
 /* ═══════════════════════════════════════════════════
+   UPLOAD CARD — mobile padding
+═══════════════════════════════════════════════════ */
+
+@media (max-width: 520px) {
+  .upload-card {
+    padding: 20px 18px !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════
    PDF VIEWER — strip react-pdf injected canvas decoration
 ═══════════════════════════════════════════════════ */
 

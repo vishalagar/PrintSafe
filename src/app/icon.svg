@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <!-- Shackle plunges down to Y=120 to hide securely under the body -->
+    <path id="shackle" d="M 84 120 V 84 A 36 36 0 0 1 156 84 V 120" fill="none" stroke-linecap="round"/>
+    
+    <!-- Padlock Body -->
+    <rect id="body" x="40" y="100" width="160" height="112" rx="20"/>
+  </defs>
+
+  <!-- Neo-brutalist Shadow (Shifted +16px down and right) -->
+  <use href="#shackle" x="16" y="16" stroke="#0D0D0D" stroke-width="24" />
+  <use href="#body" x="16" y="16" fill="#0D0D0D" stroke="#0D0D0D" stroke-width="24" />
+
+  <!-- Foreground Elements -->
+  <!-- Shackle is rendered first so its ends disappear behind the body -->
+  <use href="#shackle" stroke="#0D0D0D" stroke-width="24" />
+  
+  <!-- The main yellow body with black stroke -->
+  <use href="#body" fill="#F5C518" stroke="#0D0D0D" stroke-width="24" />
+
+  <!-- Minimalist Keyhole (Sleek Vertical Pill) -->
+  <rect x="108" y="136" width="24" height="40" rx="12" fill="#0D0D0D" />
+</svg>
