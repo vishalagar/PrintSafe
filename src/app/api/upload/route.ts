@@ -9,6 +9,8 @@ const ALLOWED_MIMES = [
   'application/pdf',
   'image/jpeg',
   'image/png',
+  'image/heic',
+  'image/heif',
 ]
 
 const MAX_FILE_SIZE = 26_214_400 // 25 MB

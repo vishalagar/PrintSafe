@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { useParams } from 'next/navigation'
+import { capture, mimeToFileType } from '@/lib/analytics'
 
 type ViewState = 'loading' | 'decrypting' | 'ready' | 'already-opened' | 'error'
 
@@ -53,10 +54,35 @@ export default function DocumentViewer() {
         const key = await base64urlToKey(keyStr)
         const plaintext = await decryptFile(ciphertext, key, iv)
 
-        const blob = new Blob([plaintext], { type: mime })
+        // Convert HEIC/HEIF → JPEG for cross-browser display
+        // Adding .heic to the file input's accept attribute tells iOS to stop
+        // auto-converting to JPEG — raw HEIC arrives but Chrome/Firefox can't
+        // render it. Convert here so all browsers see a standard JPEG blob.
+        let displayMime = mime
+        let displayBytes: ArrayBuffer = plaintext
+
+        if (mime === 'image/heic' || mime === 'image/heif') {
+          try {
+            const heic2any = (await import('heic2any')).default
+            const converted = await heic2any({
+              blob: new Blob([plaintext], { type: mime }),
+              toType: 'image/jpeg',
+              quality: 0.92,
+            }) as Blob
+            displayBytes = await converted.arrayBuffer()
+            displayMime = 'image/jpeg'
+          } catch {
+            // Conversion failed — fall through with original bytes
+            // Safari can still display native HEIC natively
+          }
+        }
+
+        setMimeType(displayMime)
+        const blob = new Blob([displayBytes], { type: displayMime })
         const url = URL.createObjectURL(blob)
         setBlobUrl(url)
         setViewState('ready')
+        capture('DocumentViewed', { fileType: mimeToFileType(mime) })
       } catch (err) {
         setErrorMsg(err instanceof Error ? err.message : 'Failed to load document.')
         setViewState('error')
@@ -123,7 +149,49 @@ export default function DocumentViewer() {
 
   // ── Ready ──
   const isPDF   = mimeType === 'application/pdf'
-  const isImage = mimeType === 'image/jpeg' || mimeType === 'image/png'
+  const isImage = mimeType.startsWith('image/')
+
+  function handlePrint() {
+    if (!blobUrl) return
+    capture('DocumentPrinted', { fileType: mimeToFileType(mimeType) })
+
+    const frame = document.createElement('iframe')
+    frame.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none'
+    document.body.appendChild(frame)
+
+    const cleanup = () => {
+      if (document.body.contains(frame)) document.body.removeChild(frame)
+      window.removeEventListener('afterprint', cleanup)
+    }
+    window.addEventListener('afterprint', cleanup)
+
+    if (isPDF) {
+      // Open PDF in new tab — contentWindow.print() on a hidden iframe doesn't
+      // work on Chrome/Safari (PDF plugin can't init in 1×1px) and falls through
+      // to parent window.print(), printing the app page instead of the document.
+      document.body.removeChild(frame)
+      window.removeEventListener('afterprint', cleanup)
+      const popup = window.open(blobUrl, '_blank')
+      if (popup) {
+        popup.addEventListener('load', () => setTimeout(() => popup.print(), 500))
+      }
+      return
+    } else {
+      // Image: write a custom page so the image always fills exactly one printed page
+      const doc = frame.contentDocument!
+      doc.open()
+      doc.write(`<!DOCTYPE html><html><head><style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        @page { margin: 0; size: auto; }
+        html, body { width: 100%; height: 100%; background: #fff; }
+        body { display: flex; align-items: center; justify-content: center; }
+        img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
+      </style></head><body>
+        <img src="${blobUrl}" onload="window.print()">
+      </body></html>`)
+      doc.close()
+    }
+  }
 
   function handlePrint() {
     if (!blobUrl) return

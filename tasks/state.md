@@ -13,6 +13,26 @@
 ---
 
 ## Last Session Summary
+**Date:** 2026-02-27 (session 3)
+
+### 1. Fixed: PDF print opens blank popup on Safari Private / Chrome
+**Root cause:** `window.open(blobUrl)` was already the fix from last session. No regression.
+
+### 2. Fixed: Safari Private Mode — localStorage throws SecurityError
+**Root cause:** Safari blocks localStorage in Private Browsing.
+**Fix:** `share/page.tsx` and `status/[token]/page.tsx` now use `sessionStorage` with a `localStorage` fallback.
+
+### 3. Fixed: Clipboard copy fails on non-HTTPS / older iOS
+**Root cause:** `navigator.clipboard.writeText()` is HTTPS-only and not available on all iOS browsers.
+**Fix:** Added `document.execCommand('copy')` fallback + `copyFailed` error state in `share/page.tsx`.
+
+### 4. Fixed: HEIC from iPhone Photos app shows broken image in Chrome/Firefox
+**Root cause:** Commit `e0be67d` added `.heic` to the file input's `accept` attribute → iOS stops auto-converting to JPEG → raw HEIC bytes arrive → Chrome/Firefox cannot display HEIC blob URLs via `<img>`.
+**Fix:** Added `heic2any` package. In `d/[token]/page.tsx`, after AES-GCM decryption, lazily import `heic2any` and convert HEIC/HEIF → JPEG before creating the blob URL. Dynamic import so zero bundle impact for non-HEIC uploads. `setMimeType(displayMime)` ensures `isPDF`/`isImage` checks stay consistent.
+
+---
+
+## Previous Session Summary
 **Date:** 2026-02-26 (session 2)
 
 ### 1. Fixed: image rendered under the grid overlay (`d/[token]/page.tsx`)

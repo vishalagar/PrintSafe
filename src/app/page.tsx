@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import { capture, mimeToFileType, sizeToFileSizeBucket, ttlToLabel } from '@/lib/analytics'
 
 const EXPIRY_OPTIONS = [
   { label: 'View once', ttl: 0 },
@@ -27,6 +28,8 @@ const MIME_LABEL: Record<string, string> = {
   'application/pdf': 'PDF',
   'image/jpeg': 'JPG',
   'image/png': 'PNG',
+  'image/heic': 'HEIC',
+  'image/heif': 'HEIF',
 }
 
 const ALLOWED_MIMES = Object.keys(MIME_LABEL)
@@ -36,6 +39,8 @@ const EXT_TO_MIME: Record<string, string> = {
   jpg:  'image/jpeg',
   jpeg: 'image/jpeg',
   png:  'image/png',
+  heic: 'image/heic',
+  heif: 'image/heif',
 }
 
 function getEffectiveMime(file: File): string {
@@ -65,6 +70,7 @@ export default function UploadPage() {
       return
     }
     setFile(f)
+    capture('FileSelected', { fileType: mimeToFileType(getEffectiveMime(f)), fileSizeBucket: sizeToFileSizeBucket(f.size) })
   }, [])
 
   const onDrop = useCallback((e: React.DragEvent) => {
@@ -76,8 +82,10 @@ export default function UploadPage() {
 
   async function handleUpload() {
     if (!file || isUploading) return
+    let errorTracked = false
     setIsUploading(true)
     setError(null)
+    capture('UploadStarted', { fileType: mimeToFileType(getEffectiveMime(file)), ttlLabel: ttlToLabel(ttl) })
     try {
       const { encryptFile, keyToBase64url } = await import('@/lib/crypto')
       const { ciphertext, iv, key } = await encryptFile(file)
@@ -98,6 +106,8 @@ export default function UploadPage() {
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
+        capture('UploadError', { reason: res.status === 429 ? 'ratelimit' : 'api' })
+        errorTracked = true
         throw new Error(res.status === 429
           ? 'Too many uploads — please try again in an hour.'
           : (data.error ?? 'Upload failed. Please try again.'))
@@ -105,6 +115,7 @@ export default function UploadPage() {
 
       const { token, deleteToken } = await res.json()
       const keyStr = await keyToBase64url(key)
+      capture('UploadSuccess', { fileType: mimeToFileType(effectiveMime), ttlLabel: ttlToLabel(ttl) })
 
       sessionStorage.setItem('ps_upload', JSON.stringify({
         token, deleteToken, key: keyStr,
@@ -114,6 +125,7 @@ export default function UploadPage() {
 
       router.push('/share')
     } catch (err: unknown) {
+      if (!errorTracked) capture('UploadError', { reason: 'encryption' })
       setError(err instanceof Error ? err.message : 'Something went wrong.')
       setIsUploading(false)
     }
@@ -151,19 +163,19 @@ export default function UploadPage() {
 
       {/* ── UPLOAD CARD ── */}
       <div className="wrap" style={{ paddingBottom: 80 }}>
-        <div style={{ background: 'var(--surface)', border: '2px solid #0D0D0D', borderRadius: 16, padding: 36, boxShadow: 'var(--shadow)', animation: 'fade-up 0.6s 0.3s ease both' }}>
+        <div className="upload-card" style={{ background: 'var(--surface)', border: '2px solid #0D0D0D', borderRadius: 16, padding: 36, boxShadow: 'var(--shadow)', animation: 'fade-up 0.6s 0.3s ease both' }}>
 
           {/* Card header */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 }}>
-            <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 20, letterSpacing: '-0.2px', display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ width: 36, height: 36, borderRadius: 8, background: 'var(--yellow)', border: '2px solid #0D0D0D', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, boxShadow: 'var(--shadow-xs)' }}>🔒</span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 28 }}>
+            <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 20, letterSpacing: '-0.2px', display: 'flex', alignItems: 'center', gap: 10, whiteSpace: 'nowrap' }}>
+              <span style={{ width: 36, height: 36, borderRadius: 8, background: 'var(--yellow)', border: '2px solid #0D0D0D', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, boxShadow: 'var(--shadow-xs)', flexShrink: 0 }}>🔒</span>
               Secure Upload
             </div>
-            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: '1.5px', textTransform: 'uppercase', fontWeight: 700, background: 'var(--surface2)', border: '2px solid #0D0D0D', padding: '4px 10px', borderRadius: 6, boxShadow: 'var(--shadow-xs)' }}>Free · No Account</span>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: '1.5px', textTransform: 'uppercase', fontWeight: 700, background: 'var(--surface2)', border: '2px solid #0D0D0D', padding: '4px 10px', borderRadius: 6, boxShadow: 'var(--shadow-xs)', whiteSpace: 'nowrap', flexShrink: 0 }}>Free · No Account</span>
           </div>
 
           {/* Drop zone */}
-          <input ref={inputRef} type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }} style={{ display: 'none' }} />
+          <input ref={inputRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,.heif" onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }} style={{ display: 'none' }} />
           <div
             onClick={() => !file && inputRef.current?.click()}
             onDrop={onDrop}
@@ -201,7 +213,7 @@ export default function UploadPage() {
           {/* File chips */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 24, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 11, color: 'var(--text-dim)', marginRight: 4, fontWeight: 500 }}>Accepted:</span>
-            {['PDF', 'JPG', 'PNG'].map(t => (
+            {['PDF', 'JPG', 'PNG', 'HEIC'].map(t => (
               <span key={t} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: '1px', textTransform: 'uppercase', fontWeight: 700, background: '#FFFFFF', border: '1.5px solid #0D0D0D', padding: '3px 9px', borderRadius: 5, boxShadow: '1px 1px 0 #0D0D0D' }}>{t}</span>
             ))}
             <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>· up to 25 MB</span>
