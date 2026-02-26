@@ -193,40 +193,6 @@ export default function DocumentViewer() {
     }
   }
 
-  function handlePrint() {
-    if (!blobUrl) return
-
-    const frame = document.createElement('iframe')
-    frame.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none'
-    document.body.appendChild(frame)
-
-    const cleanup = () => {
-      if (document.body.contains(frame)) document.body.removeChild(frame)
-      window.removeEventListener('afterprint', cleanup)
-    }
-    window.addEventListener('afterprint', cleanup)
-
-    if (isPDF) {
-      // PDF: let the browser's native PDF viewer handle all pages
-      frame.src = blobUrl
-      frame.onload = () => frame.contentWindow?.print()
-    } else {
-      // Image: write a custom page so the image always fills exactly one printed page
-      const doc = frame.contentDocument!
-      doc.open()
-      doc.write(`<!DOCTYPE html><html><head><style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        @page { margin: 0; size: auto; }
-        html, body { width: 100%; height: 100%; background: #fff; }
-        body { display: flex; align-items: center; justify-content: center; }
-        img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
-      </style></head><body>
-        <img src="${blobUrl}" onload="window.print()">
-      </body></html>`)
-      doc.close()
-    }
-  }
-
   return (
     // position: relative + zIndex: 1 ensures content stacks above the body::before grid overlay (fixed, z-index: 0)
     <div style={{ minHeight: '100vh', paddingBottom: 80, position: 'relative', zIndex: 1 }}>
