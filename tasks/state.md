@@ -1,4 +1,4 @@
-# Project State
+heic2any# Project State
 
 > **Update this file at the end of every session.**
 > Format: what was done · why · what's next · any blockers.
@@ -13,9 +13,13 @@
 ---
 
 ## Last Session Summary
-**Date:** 2026-02-27 (session 3)
+**Date:** 2026-02-27 (session 4)
 
-### 1. Fixed: PDF print opens blank popup on Safari Private / Chrome
+### 1. Fixed: Apple HDR HEIC upload fails on iPhone Safari
+**Root cause:** iPhone 15 (iOS 26.1) reports Apple HDR photos (HEIC files with `tmap` gain-map) with non-standard MIME type variants like `image/heic-sequence` instead of `image/heic`. This passed the extension fallback (`file.name` still has `.HEIC`), but if iOS ever presents the file with no extension AND a variant MIME type, `getEffectiveMime` returned `""` which failed client-side validation, blocking upload entirely. Confirmed: server accepts the file fine (tested with Node.js) — issue was 100% client-side validation.
+**Fix:** `getEffectiveMime` in `page.tsx` now normalizes any `file.type` that starts with `image/hei` → `image/heic`. Also improved error message to include what type was detected (for future debugging) and corrected the "PDF, JPG, or PNG" message to also mention HEIC.
+
+### 2. Fixed: PDF print opens blank popup on Safari Private / Chrome
 **Root cause:** `window.open(blobUrl)` was already the fix from last session. No regression.
 
 ### 2. Fixed: Safari Private Mode — localStorage throws SecurityError

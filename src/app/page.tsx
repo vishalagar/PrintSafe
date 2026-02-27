@@ -44,9 +44,16 @@ const EXT_TO_MIME: Record<string, string> = {
 }
 
 function getEffectiveMime(file: File): string {
+  // Direct match against allowed list
   if (file.type && ALLOWED_MIMES.includes(file.type)) return file.type
+  // iOS can report HEIC variants like image/heic-sequence (burst) or image/heif-sequence
+  // for Apple HDR photos — normalize them to image/heic
+  if (file.type && file.type.startsWith('image/hei')) return 'image/heic'
+  // Extension fallback for files where iOS omits or garbles the MIME type
   const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
-  return EXT_TO_MIME[ext] ?? file.type
+  if (EXT_TO_MIME[ext]) return EXT_TO_MIME[ext]
+  // Last resort: return whatever the browser gave us (server will reject if invalid)
+  return file.type
 }
 
 export default function UploadPage() {
@@ -65,12 +72,14 @@ export default function UploadPage() {
       setError('File is too large — maximum size is 25 MB.')
       return
     }
-    if (!ALLOWED_MIMES.includes(getEffectiveMime(f))) {
-      setError('Unsupported file type. Please upload a PDF, JPG, or PNG.')
+    const effectiveMime = getEffectiveMime(f)
+    if (!ALLOWED_MIMES.includes(effectiveMime)) {
+      const detected = f.type ? ` (detected: ${f.type})` : ' (type unknown)'
+      setError(`Unsupported file type${detected}. Please upload a PDF, JPG, PNG, or HEIC.`)
       return
     }
     setFile(f)
-    capture('FileSelected', { fileType: mimeToFileType(getEffectiveMime(f)), fileSizeBucket: sizeToFileSizeBucket(f.size) })
+    capture('FileSelected', { fileType: mimeToFileType(effectiveMime), fileSizeBucket: sizeToFileSizeBucket(f.size) })
   }, [])
 
   const onDrop = useCallback((e: React.DragEvent) => {
