@@ -1,4 +1,4 @@
-heic2any# Project State
+# Project State
 
 > **Update this file at the end of every session.**
 > Format: what was done · why · what's next · any blockers.
@@ -13,6 +13,26 @@ heic2any# Project State
 ---
 
 ## Last Session Summary
+**Date:** 2026-02-27 (session 5)
+
+### 1. Security: PDF print — eliminated blob URL new-tab exposure
+**Problem:** `window.open(blobUrl, '_blank')` exposed the raw PDF in a new tab with a native Download button, bypassing PrintSafe's one-time-use intent entirely.
+**Fix:** `printPDFViaCanvas()` in `d/[token]/page.tsx` — uses `pdfjs-dist` (already a dependency) to render each page to canvas at 2× scale, serialises to PNG data URLs, writes all pages into a hidden iframe, calls `frame.contentWindow.print()`. No new tab; no Download button in the PDF viewer. "Save as PDF" output is rasterized images, not the original vector PDF.
+**Bonus:** Print footer embedded in iframe HTML — `PrintSafe — authorised print copy · {token.slice(-8)} · {date}` — makes any "Save as PDF" output traceable.
+
+### 2. Security: Watermark overlay for screenshot deterrence
+**Problem:** Documents rendered in plain HTML/canvas — screenshots untraceable.
+**Fix:** `position: fixed; inset: 0; pointer-events: none; z-index: 500` div with a tiled SVG background. Diagonal text `PrintSafe · {token[-8:]} · Print only` at 8% opacity. Visible in screenshots/screen recordings; hidden in print (`no-print` class). Token suffix makes each link's screenshots distinguishable.
+
+### 3. Security: `user-select: none` on viewer root
+Added `userSelect: 'none'` to the top-level viewer div — blocks text selection and ctrl+C from the document viewer page.
+
+### 4. UX: isPrinting state + spinner on Print button
+While canvas rendering runs (1–3s for multi-page PDFs), the Print button disables itself and shows a spinner + "Preparing print…" label. Prevents double-clicks.
+
+---
+
+## Previous Session Summary
 **Date:** 2026-02-27 (session 4)
 
 ### 1. Fixed: Apple HDR HEIC upload fails on iPhone Safari

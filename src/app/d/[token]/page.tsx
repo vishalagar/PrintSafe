@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import { capture, mimeToFileType } from '@/lib/analytics'
 
-type ViewState = 'loading' | 'decrypting' | 'ready' | 'already-opened' | 'error'
+type ViewState = 'loading' | 'decrypting' | 'ready' | 'already-opened' | 'deleted' | 'error'
 
 export default function DocumentViewer() {
   const params = useParams()
@@ -15,6 +15,7 @@ export default function DocumentViewer() {
   const [mimeType, setMimeType] = useState('')
   const [ttlAfterView, setTtlAfterView] = useState(1800)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [isPrinting, setIsPrinting] = useState(false)
   const initRef = useRef(false)
 
   useEffect(() => {
@@ -98,6 +99,30 @@ export default function DocumentViewer() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token])
 
+  // Poll status every 5s while document is open — detects if sender deletes it remotely.
+  // Uses /api/status (read-only, no side effects). Functional setBlobUrl form revokes
+  // the old URL without needing blobUrl in the dependency array.
+  useEffect(() => {
+    if (viewState !== 'ready' || !token) return
+    const id = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/status/${token}`)
+        if (!res.ok) return
+        const { status } = await res.json()
+        if (status === 'deleted' || status === 'expired') {
+          setBlobUrl(prev => {
+            if (prev) URL.revokeObjectURL(prev)
+            return null
+          })
+          setViewState('deleted')
+        }
+      } catch {
+        // network hiccup — keep polling
+      }
+    }, 5000)
+    return () => clearInterval(id)
+  }, [viewState, token])
+
   const ttlLabel =
     ttlAfterView === 0 ? 'immediately after you close this tab'
     : ttlAfterView < 3600 ? `${Math.round(ttlAfterView / 60)} minutes after you close this tab`
@@ -113,6 +138,24 @@ export default function DocumentViewer() {
         </h1>
         <p style={{ fontSize: 15, color: '#0D0D0D', maxWidth: 400, lineHeight: 1.7, fontWeight: 500 }}>
           This link is one-time use only. For your protection, the document cannot be opened again.
+        </p>
+        <a href="/" style={{ marginTop: 8, padding: '12px 24px', background: 'var(--yellow)', border: '2px solid #0D0D0D', borderRadius: 10, fontWeight: 700, fontSize: 14, color: '#0D0D0D', textDecoration: 'none', boxShadow: 'var(--shadow-sm)' }}>
+          Upload a new document
+        </a>
+      </div>
+    )
+  }
+
+  // ── Deleted remotely ──
+  if (viewState === 'deleted') {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16, padding: 24, textAlign: 'center' }}>
+        <div style={{ width: 72, height: 72, borderRadius: 18, background: 'var(--red-dim)', border: '2px solid var(--red)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, marginBottom: 8 }}>🗑</div>
+        <h1 style={{ fontFamily: "'Fraunces', serif", fontWeight: 900, fontSize: 'clamp(24px, 4vw, 36px)', color: '#FFFFFF', textShadow: '2px 3px 0 #0D0D0D', letterSpacing: '-0.5px' }}>
+          Document deleted
+        </h1>
+        <p style={{ fontSize: 15, color: '#0D0D0D', maxWidth: 400, lineHeight: 1.7, fontWeight: 500 }}>
+          The sender has deleted this document. It is no longer available.
         </p>
         <a href="/" style={{ marginTop: 8, padding: '12px 24px', background: 'var(--yellow)', border: '2px solid #0D0D0D', borderRadius: 10, fontWeight: 700, fontSize: 14, color: '#0D0D0D', textDecoration: 'none', boxShadow: 'var(--shadow-sm)' }}>
           Upload a new document
@@ -151,51 +194,106 @@ export default function DocumentViewer() {
   const isPDF   = mimeType === 'application/pdf'
   const isImage = mimeType.startsWith('image/')
 
+  // Tiled diagonal watermark — makes screenshots traceable to the specific token
+  const watermarkSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"><text x="160" y="90" fill="rgba(0,0,0,0.08)" font-size="13" font-family="monospace" transform="rotate(-30,160,90)" text-anchor="middle" font-weight="600">PrintSafe · ${token.slice(-8)} · Print only</text></svg>`
+  const watermarkUrl = `data:image/svg+xml;utf8,${encodeURIComponent(watermarkSvg)}`
+
+  // Renders each PDF page to canvas at 2× scale, then prints via iframe.
+  // Raw PDF blob is never exposed in a navigable tab with a native Download button.
+  // "Save as PDF" output becomes a rasterized image copy rather than the original vector PDF.
+  async function printPDFViaCanvas(url: string) {
+    setIsPrinting(true)
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const pdfjsLib: any = await import('pdfjs-dist')
+      pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs'
+      const pdf = await pdfjsLib.getDocument({ url }).promise
+      const dataUrls: string[] = []
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i)
+        const vp = page.getViewport({ scale: 2 })
+        const canvas = document.createElement('canvas')
+        canvas.width = vp.width
+        canvas.height = vp.height
+        await page.render({ canvasContext: canvas.getContext('2d')!, viewport: vp }).promise
+        dataUrls.push(canvas.toDataURL('image/png'))
+      }
+      setIsPrinting(false)
+
+      const frame = document.createElement('iframe')
+      frame.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none'
+      document.body.appendChild(frame)
+      const cleanup = () => {
+        if (document.body.contains(frame)) document.body.removeChild(frame)
+        window.removeEventListener('afterprint', cleanup)
+      }
+      window.addEventListener('afterprint', cleanup)
+
+      const date = new Date().toLocaleDateString()
+      const footer = `PrintSafe — authorised print copy · ${token.slice(-8)} · ${date}`
+      const imgHtml = dataUrls.map((src, idx) =>
+        `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;page-break-after:${idx < dataUrls.length - 1 ? 'always' : 'avoid'}"><img src="${src}" style="max-width:100%;max-height:calc(100vh - 50px);object-fit:contain;display:block"></div>`
+      ).join('')
+
+      const iframeDoc = frame.contentDocument!
+      iframeDoc.open()
+      iframeDoc.write(`<!DOCTYPE html><html><head><style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        @page { margin: 10mm; size: auto; }
+        html, body { width: 100%; background: #fff; }
+        .footer { font-family: monospace; font-size: 10px; color: #666; text-align: center; margin-top: 8px; }
+      </style></head><body>${imgHtml}<div class="footer">${footer}</div></body></html>`)
+      iframeDoc.close()
+      setTimeout(() => {
+        frame.contentWindow!.focus()
+        frame.contentWindow!.print()
+      }, 100)
+    } catch {
+      setIsPrinting(false)
+    }
+  }
+
   function handlePrint() {
-    if (!blobUrl) return
+    if (!blobUrl || isPrinting) return
     capture('DocumentPrinted', { fileType: mimeToFileType(mimeType) })
 
+    if (isPDF) {
+      printPDFViaCanvas(blobUrl)
+      return
+    }
+
+    // Image: write a custom page so the image always fills exactly one printed page
     const frame = document.createElement('iframe')
     frame.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none'
     document.body.appendChild(frame)
-
     const cleanup = () => {
       if (document.body.contains(frame)) document.body.removeChild(frame)
       window.removeEventListener('afterprint', cleanup)
     }
     window.addEventListener('afterprint', cleanup)
-
-    if (isPDF) {
-      // Open PDF in new tab — contentWindow.print() on a hidden iframe doesn't
-      // work on Chrome/Safari (PDF plugin can't init in 1×1px) and falls through
-      // to parent window.print(), printing the app page instead of the document.
-      document.body.removeChild(frame)
-      window.removeEventListener('afterprint', cleanup)
-      const popup = window.open(blobUrl, '_blank')
-      if (popup) {
-        popup.addEventListener('load', () => setTimeout(() => popup.print(), 500))
-      }
-      return
-    } else {
-      // Image: write a custom page so the image always fills exactly one printed page
-      const doc = frame.contentDocument!
-      doc.open()
-      doc.write(`<!DOCTYPE html><html><head><style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        @page { margin: 0; size: auto; }
-        html, body { width: 100%; height: 100%; background: #fff; }
-        body { display: flex; align-items: center; justify-content: center; }
-        img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
-      </style></head><body>
-        <img src="${blobUrl}" onload="window.print()">
-      </body></html>`)
-      doc.close()
-    }
+    const doc = frame.contentDocument!
+    doc.open()
+    doc.write(`<!DOCTYPE html><html><head><style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      @page { margin: 0; size: auto; }
+      html, body { width: 100%; height: 100%; background: #fff; }
+      body { display: flex; align-items: center; justify-content: center; }
+      img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
+    </style></head><body>
+      <img src="${blobUrl}" onload="window.print()">
+    </body></html>`)
+    doc.close()
   }
 
   return (
     // position: relative + zIndex: 1 ensures content stacks above the body::before grid overlay (fixed, z-index: 0)
-    <div style={{ minHeight: '100vh', paddingBottom: 80, position: 'relative', zIndex: 1 }}>
+    <div style={{ minHeight: '100vh', paddingBottom: 80, position: 'relative', zIndex: 1, userSelect: 'none' }}>
+
+      {/* Tiled watermark — fixed overlay, pointer-events off, hidden in print */}
+      <div
+        className="no-print"
+        style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 500, backgroundImage: `url("${watermarkUrl}")`, backgroundRepeat: 'repeat', backgroundSize: '320px 180px' }}
+      />
 
       {/* Amber security banner */}
       <div
@@ -226,9 +324,15 @@ export default function DocumentViewer() {
       <div className="no-print" style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 200 }}>
         <button
           onClick={handlePrint}
-          style={{ padding: '14px 22px', background: 'var(--yellow)', border: '2px solid #0D0D0D', borderRadius: 12, fontWeight: 700, fontSize: 15, cursor: 'pointer', boxShadow: 'var(--shadow)', display: 'flex', alignItems: 'center', gap: 8, color: '#0D0D0D' }}
+          disabled={isPrinting}
+          style={{ padding: '14px 22px', background: isPrinting ? 'var(--surface2)' : 'var(--yellow)', border: '2px solid #0D0D0D', borderRadius: 12, fontWeight: 700, fontSize: 15, cursor: isPrinting ? 'not-allowed' : 'pointer', boxShadow: 'var(--shadow)', display: 'flex', alignItems: 'center', gap: 8, color: '#0D0D0D', opacity: isPrinting ? 0.7 : 1 }}
         >
-          🖨 Print
+          {isPrinting ? (
+            <>
+              <div style={{ width: 16, height: 16, border: '2px solid rgba(13,13,13,0.3)', borderTopColor: '#0D0D0D', borderRadius: '50%', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />
+              Preparing print…
+            </>
+          ) : '🖨 Print'}
         </button>
       </div>
     </div>
