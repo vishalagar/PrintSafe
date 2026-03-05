@@ -10,8 +10,10 @@
   /src/app/d/[token]/page.tsx → Document viewer (one-time, decrypts in browser)
   /src/app/status/[token]/page.tsx → Status & delete (/status/[token])
   /src/app/api/upload/route.ts        → Receive encrypted blob, store in R2
-  /src/app/api/doc/[token]/route.ts   → Fetch blob once / delete
+  /src/app/api/doc/[token]/route.ts   → Mark viewed, return iv/mimeType/ttl (no blob)
+  /src/app/api/file/[token]/route.ts  → Proxy encrypted blob from R2 (browser can't fetch R2 directly)
   /src/app/api/status/[token]/route.ts → Status check
+  /src/app/api/cron/cleanup/route.ts  → Purge expired/stale docs from R2 (CRON_SECRET protected)
   /src/app/shop/[slug]        → Shop branded upload page (public) — Phase 3
   /src/app/dashboard          → Shop operator dashboard — Phase 3
   /src/components             → Reusable UI components
@@ -44,6 +46,10 @@ const key = await crypto.subtle.generateKey(
 - Key lives in `#fragment` only — browsers never include fragments in HTTP requests
 - Flow: Encrypt → upload ciphertext → server stores opaque blob → download ciphertext → decrypt in browser
 
+## PDF.js Worker
+
+`postinstall` in `package.json` copies `pdfjs-dist/build/pdf.worker.min.mjs` → `public/pdf.worker.min.mjs`. The viewer sets `pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs'`. Use this path — CDN does not reliably host pdfjs v5.
+
 ---
 
 ## API Route Map
@@ -51,9 +57,11 @@ const key = await crypto.subtle.generateKey(
 ```
 # Personal Mode
 POST /api/upload                     → Receive encrypted blob, store in R2
-GET  /api/doc/:token                 → Fetch blob once, mark viewed
+GET  /api/doc/:token                 → Mark viewed, return iv/mimeType/ttl — 410 if already viewed
+GET  /api/file/:token                → Proxy encrypted ciphertext blob from R2 (avoids browser CORS)
 GET  /api/status/:token              → Check status (for uploader)
 DEL  /api/doc/:token                 → Manual delete by uploader
+POST /api/cron/cleanup               → Purge expired/stale docs (Authorization: Bearer CRON_SECRET)
 
 # Commercial Mode (auth required except /shop/:slug) — Phase 3
 POST /api/shop/register              → Register shop

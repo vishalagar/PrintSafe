@@ -13,6 +13,26 @@
 ---
 
 ## Last Session Summary
+**Date:** 2026-03-06 (session 6)
+
+### 1. Dark mode — fully shipped ✅
+Full light/dark toggle implemented across all pages. Key details:
+- Design tokens in `globals.css` — CSS vars for all colors, `html[data-theme="dark"]` overrides
+- `ThemeToggle.tsx` — sun/moon button in nav, writes `'dark'|'light'` to `localStorage`
+- Blocking script in `layout.tsx` reads `localStorage` before first paint — no FOUC
+- **Light mode is the default** — system `prefers-color-scheme` is intentionally ignored
+- Theme persists across sessions via `localStorage('theme')`
+
+### 2. Fix: Hero + page text was black on sky blue background (light mode)
+`var(--text)` resolves to `#0D0D0D` (black). Hero headings and subtitles on the sky blue `--bg` background must use `#FFFFFF` (hardcoded, not a CSS var).
+**Affected:** `page.tsx` h1 + p, `share/page.tsx` h1 + p + footer.
+
+### 3. Confirmed: Theme preference persists (no change needed)
+User asked if preferences could be remembered. Theme already persists via `localStorage('theme')`. Documented the mechanism for future reference.
+
+---
+
+## Previous Session Summary
 **Date:** 2026-02-27 (session 5)
 
 ### 1. Security: PDF print — eliminated blob URL new-tab exposure
@@ -87,11 +107,12 @@ While canvas rendering runs (1–3s for multi-page PDFs), the Print button disab
 ## What's Next (Phase 2 — continued)
 
 1. ~~**Cron cleanup job**~~ ✅ Done
-2. **TTL=0 immediate deletion** — when `ttl_after_view === 0`, delete from R2 + mark deleted after file is served. Use `after()` from `next/server`. Currently blob stays in R2 until cron runs.
-3. **Rate limit hardening** — fail closed when Redis is down (currently fails open)
-4. **CAPTCHA on upload** — hCaptcha or Cloudflare Turnstile
-5. **Vercel deployment** — env vars + CRON_SECRET in Vercel dashboard, configure Vercel Cron for `/api/cron/cleanup`
-6. **Phase 3 prep** — Commercial mode: shop auth, branded pages, live dashboard
+2. ~~**Dark mode**~~ ✅ Done — session 6
+3. **TTL=0 immediate deletion** — when `ttl_after_view === 0`, delete from R2 + mark deleted after file is served. Use `after()` from `next/server`. Currently blob stays in R2 until cron runs.
+4. **Rate limit hardening** — fail closed when Redis is down (currently fails open)
+5. **CAPTCHA on upload** — hCaptcha or Cloudflare Turnstile
+6. **Vercel deployment** — env vars + CRON_SECRET in Vercel dashboard, configure Vercel Cron for `/api/cron/cleanup`
+7. **Phase 3 prep** — Commercial mode: shop auth, branded pages, live dashboard
 
 ---
 

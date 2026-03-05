@@ -40,10 +40,100 @@
 
   --grid-col:       rgba(255, 255, 255, 0.35);
 
+  /* Semantic tokens */
+  --ink:                #0D0D0D;
+  --amber-banner-bg:    #FEF9C3;
+  --amber-banner-border:#CA8A04;
+  --amber-banner-text:  #92400E;
+  --amber-banner-sub:   #78350F;
+  --success-bg:         #DCFCE7;
+  --success-border:     #16A34A;
+  --success-text:       #14532D;
+  --spinner-track:      rgba(13, 13, 13, 0.15);
+  --overlay:            rgba(0, 0, 0, 0.65);
+  --timeline-line:      rgba(13, 13, 13, 0.10);
+  --drop-active-bg:     #FFFBEA;
+  --drop-border:        rgba(13, 13, 13, 0.30);
+  --divider:            rgba(13, 13, 13, 0.20);
+  --expired-bg:         rgba(255, 255, 255, 0.1);
+  --expired-border:     #9CA3AF;
+  --expired-text:       #374151;
+
   /* Neo-brutalist: hard offset, no blur */
-  --shadow:         5px 5px 0 #0D0D0D;
-  --shadow-sm:      3px 3px 0 #0D0D0D;
-  --shadow-xs:      2px 2px 0 #0D0D0D;
+  --shadow:         5px 5px 0 var(--ink);
+  --shadow-sm:      3px 3px 0 var(--ink);
+  --shadow-xs:      2px 2px 0 var(--ink);
+
+  /* Text stamp shadow — always dark ink in light mode, fades out in dark mode */
+  --stamp:          rgba(0, 0, 0, 0.88);
+}
+
+/* ═══════════════════════════════════════════════════
+   DARK MODE
+═══════════════════════════════════════════════════ */
+
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme="light"]) {
+    --stamp:              transparent;
+    --bg:                 #0F1923;
+    --surface:            #1A2636;
+    --surface2:           #243347;
+    --surface3:           #2D3F55;
+    --text:               #F0F4F8;
+    --text-mid:           #D4DCE6;
+    --text-dim:           #7A93AC;
+    --ink:                #E8EEF4;
+    --grid-col:           rgba(255, 255, 255, 0.04);
+    --blue:               #4A9FD4;
+    --red:                #F06070;
+    --amber-banner-bg:    #2A1F00;
+    --amber-banner-border:#8A6400;
+    --amber-banner-text:  #FBD96A;
+    --amber-banner-sub:   #D4A820;
+    --success-bg:         #0A2A12;
+    --success-border:     #22A055;
+    --success-text:       #4ADE80;
+    --spinner-track:      rgba(232, 238, 244, 0.15);
+    --overlay:            rgba(0, 0, 0, 0.80);
+    --drop-active-bg:     #1F1700;
+    --drop-border:        rgba(232, 238, 244, 0.20);
+    --divider:            rgba(232, 238, 244, 0.12);
+    --timeline-line:      rgba(232, 238, 244, 0.12);
+    --expired-border:     #4B5563;
+    --expired-text:       #9CA3AF;
+    --expired-bg:         rgba(0, 0, 0, 0.2);
+  }
+}
+
+html[data-theme="dark"] {
+  --stamp:              transparent;
+  --bg:                 #0F1923;
+  --surface:            #1A2636;
+  --surface2:           #243347;
+  --surface3:           #2D3F55;
+  --text:               #F0F4F8;
+  --text-mid:           #D4DCE6;
+  --text-dim:           #7A93AC;
+  --ink:                #E8EEF4;
+  --grid-col:           rgba(255, 255, 255, 0.04);
+  --blue:               #4A9FD4;
+  --red:                #F06070;
+  --amber-banner-bg:    #2A1F00;
+  --amber-banner-border:#8A6400;
+  --amber-banner-text:  #FBD96A;
+  --amber-banner-sub:   #D4A820;
+  --success-bg:         #0A2A12;
+  --success-border:     #22A055;
+  --success-text:       #4ADE80;
+  --spinner-track:      rgba(232, 238, 244, 0.15);
+  --overlay:            rgba(0, 0, 0, 0.80);
+  --drop-active-bg:     #1F1700;
+  --drop-border:        rgba(232, 238, 244, 0.20);
+  --divider:            rgba(232, 238, 244, 0.12);
+  --timeline-line:      rgba(232, 238, 244, 0.12);
+  --expired-border:     #4B5563;
+  --expired-text:       #9CA3AF;
+  --expired-bg:         rgba(0, 0, 0, 0.2);
 }
 
 /* ═══════════════════════════════════════════════════
@@ -109,6 +199,23 @@ body::before {
 }
 
 /* ═══════════════════════════════════════════════════
+   THEME TRANSITION — active briefly during toggle
+   Applied via JS class to avoid slowing down hover/active states
+═══════════════════════════════════════════════════ */
+
+@media (prefers-reduced-motion: no-preference) {
+  .theme-transitioning,
+  .theme-transitioning *,
+  .theme-transitioning *::before,
+  .theme-transitioning *::after {
+    transition:
+      background-color 0.3s ease,
+      color 0.25s ease,
+      border-color 0.25s ease !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════
    SHADOW UTILITIES
 ═══════════════════════════════════════════════════ */
 
@@ -144,6 +251,13 @@ body::before {
   to   { transform: scale(1);   opacity: 1; }
 }
 
+@keyframes theme-flip {
+  0%   { transform: rotate(0deg)  scale(1);   opacity: 1; }
+  40%  { transform: rotate(75deg) scale(0.3); opacity: 0.2; }
+  60%  { transform: rotate(-30deg) scale(0.3); opacity: 0.2; }
+  100% { transform: rotate(0deg)  scale(1);   opacity: 1; }
+}
+
 /* ═══════════════════════════════════════════════════
    LAYOUT UTILITIES
 ═══════════════════════════════════════════════════ */
@@ -166,40 +280,40 @@ body::before {
   gap: 8px;
   padding: 14px 28px;
   background: var(--yellow);
-  color: #0D0D0D;
+  color: var(--ink);
   font-weight: 700;
   font-size: 15px;
   border-radius: 8px;
-  border: 2px solid #0D0D0D;
+  border: 2px solid var(--ink);
   cursor: pointer;
   text-decoration: none;
-  box-shadow: 4px 4px 0 #0D0D0D;
+  box-shadow: 4px 4px 0 var(--ink);
   transition: transform 0.1s, box-shadow 0.1s;
 }
 
-.btn-primary:hover  { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 #0D0D0D; }
-.btn-primary:active { transform: translate(2px, 2px);   box-shadow: 2px 2px 0 #0D0D0D; }
-.btn-primary:disabled { opacity: 0.55; cursor: not-allowed; transform: none; box-shadow: 4px 4px 0 #0D0D0D; }
+.btn-primary:hover  { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 var(--ink); }
+.btn-primary:active { transform: translate(2px, 2px);   box-shadow: 2px 2px 0 var(--ink); }
+.btn-primary:disabled { opacity: 0.55; cursor: not-allowed; transform: none; box-shadow: 4px 4px 0 var(--ink); }
 
 .btn-ghost {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   padding: 14px 24px;
-  background: #FFFFFF;
-  color: #0D0D0D;
+  background: var(--surface);
+  color: var(--ink);
   font-weight: 700;
   font-size: 15px;
   border-radius: 8px;
-  border: 2px solid #0D0D0D;
+  border: 2px solid var(--ink);
   cursor: pointer;
   text-decoration: none;
-  box-shadow: 4px 4px 0 #0D0D0D;
+  box-shadow: 4px 4px 0 var(--ink);
   transition: transform 0.1s, box-shadow 0.1s;
 }
 
-.btn-ghost:hover  { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 #0D0D0D; background: var(--surface2); }
-.btn-ghost:active { transform: translate(2px, 2px);   box-shadow: 2px 2px 0 #0D0D0D; }
+.btn-ghost:hover  { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 var(--ink); background: var(--surface2); }
+.btn-ghost:active { transform: translate(2px, 2px);   box-shadow: 2px 2px 0 var(--ink); }
 
 /* ═══════════════════════════════════════════════════
    UPLOAD CARD — mobile padding

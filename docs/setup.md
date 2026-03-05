@@ -12,7 +12,7 @@ npx shadcn@latest add button badge dialog toast
 
 ## Environment Variables
 
-File: `src/.env.local` — **never commit. Add to `.gitignore`.**
+File: `.env.local` (project root) — **never commit. Add to `.gitignore`.**
 
 | Variable | Where to find it |
 |----------|-----------------|
