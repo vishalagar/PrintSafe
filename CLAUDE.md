@@ -67,6 +67,7 @@ supabase gen types typescript --local > src/lib/database.types.ts
 → Env vars & bootstrap: [`docs/setup.md`](docs/setup.md)
 → Design system & UI screens: [`docs/design.md`](docs/design.md)
 → Locked decisions & cost budget: [`docs/decisions.md`](docs/decisions.md)
+→ Security patterns & known gaps: [`docs/security.md`](docs/security.md)
 
 ---
 
@@ -79,6 +80,7 @@ supabase gen types typescript --local > src/lib/database.types.ts
 5. All commercial mode API routes **MUST** verify `Authorization: Bearer <supabase-jwt>` header
 6. Personal mode `/api/upload` **MUST** be rate-limited by IP via Upstash
 7. R2 bucket must have **no public access** — pre-signed URLs only; 25-hour lifecycle rule as safety net
+8. After **ANY** change to a security pattern — new auth, validation, crypto, or viewer protection — **update `docs/security.md`** (Security Changelog + relevant section)
 
 ---
 
@@ -101,7 +103,7 @@ pending → viewed → deleted
 ## Development Phases
 
 - **Phase 1** ✅ COMPLETE: Personal Mode MVP. Upload · encrypt · one-time link · view · auto-delete. No auth.
-- **Phase 2** ← **current**: Security hardening — rate limits, CAPTCHA, cron cleanup
+- **Phase 2** ← **current**: Security hardening — rate limits, CAPTCHA ~~cron cleanup ✅~~
 - **Phase 3**: Commercial Mode — shop auth, branded pages, live dashboard, WebSocket/SSE
 - **Phase 4**: Polish & scale
 
