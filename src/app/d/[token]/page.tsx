@@ -627,7 +627,7 @@ export default function DocumentViewer() {
               Preparing print…
             </>
           ) : (
-            "Print"
+            "🖨 Print"
           )}
         </button>
       </div>
