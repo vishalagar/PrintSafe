@@ -326,6 +326,16 @@ body::before {
 }
 
 /* ═══════════════════════════════════════════════════
+   UPLOAD CARD — mobile padding
+═══════════════════════════════════════════════════ */
+
+@media (max-width: 520px) {
+  .upload-card {
+    padding: 20px 18px !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════
    PDF VIEWER — strip react-pdf injected canvas decoration
 ═══════════════════════════════════════════════════ */
 
