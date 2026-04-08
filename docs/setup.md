@@ -29,6 +29,8 @@ File: `.env.local` (project root) — **never commit. Add to `.gitignore`.**
 | `RESEND_API_KEY` | Resend → API Keys (Phase 2 — create now, use later) |
 | `NEXT_PUBLIC_APP_URL` | `http://localhost:3000` locally; production domain in Vercel |
 | `CRON_SECRET` | Random 32-char string — protects the cron endpoint |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Cloudflare → Turnstile → your widget → Site Key (public, browser-safe) |
+| `TURNSTILE_SECRET_KEY` | Cloudflare → Turnstile → your widget → Secret Key ⚠ private |
 
 > **Rule:** Any `NEXT_PUBLIC_` variable is visible in the browser. Never prefix R2 keys, Supabase service role, or Upstash token with `NEXT_PUBLIC_`.
 
@@ -38,6 +40,20 @@ File: `.env.local` (project root) — **never commit. Add to `.gitignore`.**
 - **No public access** — objects reachable only via pre-signed URLs from API routes
 - Set lifecycle rule: delete objects older than 25 hours (last-resort safety net)
 - Test locally: upload a file, read it back, delete it before writing any app code
+
+## Vercel Deployment
+
+1. Push the repo to GitHub and import it in the Vercel dashboard.
+2. Copy all env vars from `.env.local` to Vercel → Project → Settings → Environment Variables, with these changes:
+   - `NEXT_PUBLIC_APP_URL` → set to your production domain (e.g. `https://printsafe.in`)
+   - `CRON_SECRET` → same random 32-char string used locally
+   - `NEXT_PUBLIC_TURNSTILE_SITE_KEY` + `TURNSTILE_SECRET_KEY` → from Cloudflare Turnstile dashboard
+3. `vercel.json` already configures the hourly cron job for `/api/cron/cleanup`. Vercel automatically includes `Authorization: Bearer <CRON_SECRET>` in cron requests when the env var is set.
+4. After deploy, verify: Vercel dashboard → Project → Cron Jobs tab → trigger manually → check Supabase for deleted rows.
+
+> **Note:** Turnstile widget is only shown in production (when `NEXT_PUBLIC_TURNSTILE_SITE_KEY` is set). Local dev works without CAPTCHA keys.
+
+---
 
 ## Supabase Region
 

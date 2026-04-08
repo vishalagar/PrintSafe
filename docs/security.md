@@ -67,7 +67,7 @@ Canonical record of every security decision, pattern, and known gap.
 - **Function:** `checkRateLimit()` in `src/lib/redis.ts`
 - **Limit:** 10 uploads per IP per hour
 - **IP source:** `x-forwarded-for` first segment (Vercel-safe — Vercel sets this header, not the client)
-- **⚠️ Known gap:** Fails open (allows requests) when Redis is unavailable — Phase 2 hardening needed (see Section J)
+- **Fail-closed:** When Redis is unavailable, `checkRateLimit` returns `false` → upload route returns 429. No uploads allowed during Redis outages.
 
 ---
 
@@ -103,13 +103,23 @@ Canonical record of every security decision, pattern, and known gap.
 
 ---
 
+## H2. CAPTCHA (Cloudflare Turnstile)
+
+- **Widget:** `react-turnstile` on the upload page (`src/app/page.tsx`) — rendered only when `NEXT_PUBLIC_TURNSTILE_SITE_KEY` is set
+- **Server verify:** `/api/upload` calls `https://challenges.cloudflare.com/turnstile/v0/siteverify` with `TURNSTILE_SECRET_KEY` before processing any upload
+- **Dev mode:** If `TURNSTILE_SECRET_KEY` is not set, verification is skipped — safe for local development without CAPTCHA keys
+- **Token transport:** Via `x-captcha-token` request header (never in URL or body)
+- **Reset on failure:** Widget re-renders (via key increment) after a failed upload so user can solve again
+
+---
+
 ## J. Known Gaps
 
-| Gap | Severity | Planned fix |
-|-----|----------|-------------|
-| Rate limit fails open when Redis is down | Medium | Fail closed: throw 429 when Redis unavailable |
-| No CAPTCHA on upload | Medium | Add hCaptcha or Cloudflare Turnstile to `/api/upload` |
-| TTL=0: blob stays in R2 after first view until cron runs | Medium | Use `after()` from `next/server` to trigger deletion immediately post-response |
+| Gap | Severity | Status |
+|-----|----------|--------|
+| ~~Rate limit fails open when Redis is down~~ | Medium | ✅ Fixed — fail-closed (session 7) |
+| ~~No CAPTCHA on upload~~ | Medium | ✅ Fixed — Cloudflare Turnstile (session 7) |
+| ~~TTL=0: blob stays in R2 after first view until cron runs~~ | Medium | ✅ Fixed — `after()` immediate deletion (session 7) |
 | `x-forwarded-for` spoofable off Vercel | Low | Vercel overwrites this header — safe on Vercel only; document infra requirement |
 | No CSP / security headers | Low | Add via `next.config.ts` `headers()` in Phase 2 |
 | No RLS policies (service_role bypasses row-level security) | Low | By design for Phase 1; add per-user policies in Phase 3 |
@@ -122,6 +132,7 @@ Canonical record of every security decision, pattern, and known gap.
 
 | Date | Change |
 |------|--------|
+| 2026-03-06 | Rate limit fail-closed; TTL=0 immediate R2 deletion via `after()`; Cloudflare Turnstile CAPTCHA on upload (session 7) |
 | 2026-02-27 | Added: rasterized PDF print via canvas, watermark overlay, `userSelect:none`, remote-delete polling (session 5) |
 | 2026-02-26 | Added: cron cleanup route (`/api/cron/cleanup`), HEIC/HEIF support, one-time 410 gate extended to `viewed` status |
 | Initial | AES-256-GCM encryption, R2 presigned-only access, IP rate limiting, `delete_token` auth on DELETE route |
