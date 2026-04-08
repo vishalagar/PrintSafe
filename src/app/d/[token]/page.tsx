@@ -444,7 +444,7 @@ export default function DocumentViewer() {
       const imgHtml = dataUrls
         .map(
           (src, idx) =>
-            `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;page-break-after:${idx < dataUrls.length - 1 ? "always" : "avoid"}"><img src="${src}" style="max-width:100%;max-height:calc(100vh - 50px);object-fit:contain;display:block"></div>`,
+            `<div style="page-break-after:${idx < dataUrls.length - 1 ? "always" : "avoid"};page-break-inside:avoid;text-align:center"><img src="${src}" style="max-width:100%;max-height:95vh;object-fit:contain;display:inline-block">${idx === dataUrls.length - 1 ? `<div class="footer">${footer}</div>` : ""}</div>`,
         )
         .join("");
 
@@ -455,12 +455,27 @@ export default function DocumentViewer() {
         @page { margin: 10mm; size: auto; }
         html, body { width: 100%; background: #fff; }
         .footer { font-family: monospace; font-size: 10px; color: #666; text-align: center; margin-top: 8px; }
-      </style></head><body>${imgHtml}<div class="footer">${footer}</div></body></html>`);
+      </style></head><body>${imgHtml}</body></html>`);
       iframeDoc.close();
-      setTimeout(() => {
-        frame.contentWindow!.focus();
-        frame.contentWindow!.print();
-      }, 100);
+
+      // Wait for ALL images to load before printing — data URLs for large
+      // 2× PNG pages can take longer than a fixed timeout to decode.
+      const imgs = Array.from(iframeDoc.querySelectorAll("img")) as HTMLImageElement[];
+      await Promise.all(
+        imgs.map(
+          (img) =>
+            new Promise<void>((resolve) => {
+              if (img.complete && img.naturalWidth > 0) {
+                resolve();
+              } else {
+                img.onload = () => resolve();
+                img.onerror = () => resolve(); // don't block print on error
+              }
+            }),
+        ),
+      );
+      frame.contentWindow!.focus();
+      frame.contentWindow!.print();
     } catch {
       setIsPrinting(false);
     }
