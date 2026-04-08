@@ -111,8 +111,10 @@ export default function DocumentViewer() {
   // Poll status every 5s while document is open — detects if sender deletes it remotely.
   // Uses /api/status (read-only, no side effects). Functional setBlobUrl form revokes
   // the old URL without needing blobUrl in the dependency array.
+  // Skip polling for TTL=0 (view-once): the file is deleted from R2 immediately after
+  // serving, so polling would detect "deleted" and revoke the blob while user is still viewing.
   useEffect(() => {
-    if (viewState !== "ready" || !token) return;
+    if (viewState !== "ready" || !token || ttlAfterView === 0) return;
     const id = setInterval(async () => {
       try {
         const res = await fetch(`/api/status/${token}`);
@@ -130,7 +132,7 @@ export default function DocumentViewer() {
       }
     }, 5000);
     return () => clearInterval(id);
-  }, [viewState, token]);
+  }, [viewState, token, ttlAfterView]);
 
   const ttlLabel =
     ttlAfterView === 0
