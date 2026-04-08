@@ -839,6 +839,30 @@ export default function UploadPage() {
           >
             Encrypted in browser · Auto-shredded · Zero trace
           </p>
+          <p
+            style={{
+              fontSize: 12,
+              color: "var(--text-dim)",
+              fontWeight: 500,
+              marginTop: 16,
+              opacity: 0.7,
+            }}
+          >
+            Built by{" "}
+            <a
+              href="https://www.linkedin.com/in/vishal-agarwal123/"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                color: "var(--text-dim)",
+                fontWeight: 700,
+                textDecoration: "underline",
+                textUnderlineOffset: "2px",
+              }}
+            >
+              Vishal Agarwal
+            </a>
+          </p>
         </div>
       </footer>
     </div>
