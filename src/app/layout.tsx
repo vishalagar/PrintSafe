@@ -5,9 +5,35 @@ import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://printsafe.in"),
+  verification: {
+    google: "-YXV_86XrlY3khfbPPD4XXSsbSU0KBX5emA2M88-4Sk",
+  },
   title: "PrintSafe — Self-Destructing Documents",
   description:
     "Share sensitive documents securely. Encrypted, one-time links that self-destruct after printing.",
+  keywords: [
+    "secure document sharing",
+    "self-destructing documents",
+    "encrypted file sharing",
+    "one-time link",
+    "print safe",
+    "secure printing",
+  ],
+  openGraph: {
+    title: "PrintSafe — Self-Destructing Documents",
+    description:
+      "Share sensitive documents securely. Encrypted, one-time links that self-destruct after printing.",
+    url: "https://printsafe.in",
+    type: "website",
+    siteName: "PrintSafe",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "PrintSafe — Self-Destructing Documents",
+    description:
+      "Share sensitive documents securely. Encrypted, one-time links that self-destruct after printing.",
+  },
 };
 
 export default function RootLayout({

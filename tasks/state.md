@@ -8,27 +8,35 @@
 
 ## Current Phase
 **Phase 1 — Personal Mode MVP** ← **FULLY WORKING end-to-end ✅**
-**Phase 2 — Security Hardening** ← **IN PROGRESS**
+**Phase 2 — Security Hardening** ← **COMPLETE ✅**
+**Phase 3 — Commercial Mode** ← **next**
 
 ---
 
 ## Last Session Summary
-**Date:** 2026-03-06 (session 6)
+**Date:** 2026-03-06 (session 7)
 
-### 1. Dark mode — fully shipped ✅
-Full light/dark toggle implemented across all pages. Key details:
-- Design tokens in `globals.css` — CSS vars for all colors, `html[data-theme="dark"]` overrides
-- `ThemeToggle.tsx` — sun/moon button in nav, writes `'dark'|'light'` to `localStorage`
-- Blocking script in `layout.tsx` reads `localStorage` before first paint — no FOUC
-- **Light mode is the default** — system `prefers-color-scheme` is intentionally ignored
-- Theme persists across sessions via `localStorage('theme')`
+### Phase 2 Security Hardening — all items complete ✅
 
-### 2. Fix: Hero + page text was black on sky blue background (light mode)
-`var(--text)` resolves to `#0D0D0D` (black). Hero headings and subtitles on the sky blue `--bg` background must use `#FFFFFF` (hardcoded, not a CSS var).
-**Affected:** `page.tsx` h1 + p, `share/page.tsx` h1 + p + footer.
+**1. Rate limit fail-closed** (`src/lib/redis.ts`, `src/app/api/upload/route.ts`)
+- `checkRateLimit` now returns `false` (instead of `true`) when Redis is unavailable
+- Upload route outer catch also changed from `allowed = true` to `allowed = false`
+- Result: Redis outage → all uploads blocked (429), not allowed through
 
-### 3. Confirmed: Theme preference persists (no change needed)
-User asked if preferences could be remembered. Theme already persists via `localStorage('theme')`. Documented the mechanism for future reference.
+**2. TTL=0 immediate R2 deletion** (`src/app/api/file/[token]/route.ts`)
+- Added `after()` from `next/server` to run cleanup after response is sent
+- When `ttl_after_view === 0` ("view once"): `deleteR2Object()` + status → `deleted` fires immediately post-response
+- DB query updated to select `ttl_after_view` alongside `storage_key` and `status`
+
+**3. CAPTCHA (Cloudflare Turnstile)** (`src/app/page.tsx`, `src/app/api/upload/route.ts`)
+- `react-turnstile` installed; widget renders above submit button when `NEXT_PUBLIC_TURNSTILE_SITE_KEY` is set
+- Submit button disabled until CAPTCHA solved (when site key configured)
+- Widget resets (key increment) after failed upload attempt
+- Server verifies via Turnstile siteverify API; skipped if `TURNSTILE_SECRET_KEY` not set (dev-friendly)
+
+**4. Vercel deployment** (`vercel.json`, `docs/setup.md`)
+- `vercel.json` created with hourly cron for `/api/cron/cleanup`
+- `docs/setup.md` updated with full Vercel deployment instructions + new env vars
 
 ---
 
@@ -52,77 +60,23 @@ While canvas rendering runs (1–3s for multi-page PDFs), the Print button disab
 
 ---
 
-## Previous Session Summary
-**Date:** 2026-02-27 (session 4)
+## What's Next (Phase 3)
 
-### 1. Fixed: Apple HDR HEIC upload fails on iPhone Safari
-**Root cause:** iPhone 15 (iOS 26.1) reports Apple HDR photos (HEIC files with `tmap` gain-map) with non-standard MIME type variants like `image/heic-sequence` instead of `image/heic`. This passed the extension fallback (`file.name` still has `.HEIC`), but if iOS ever presents the file with no extension AND a variant MIME type, `getEffectiveMime` returned `""` which failed client-side validation, blocking upload entirely. Confirmed: server accepts the file fine (tested with Node.js) — issue was 100% client-side validation.
-**Fix:** `getEffectiveMime` in `page.tsx` now normalizes any `file.type` that starts with `image/hei` → `image/heic`. Also improved error message to include what type was detected (for future debugging) and corrected the "PDF, JPG, or PNG" message to also mention HEIC.
-
-### 2. Fixed: PDF print opens blank popup on Safari Private / Chrome
-**Root cause:** `window.open(blobUrl)` was already the fix from last session. No regression.
-
-### 2. Fixed: Safari Private Mode — localStorage throws SecurityError
-**Root cause:** Safari blocks localStorage in Private Browsing.
-**Fix:** `share/page.tsx` and `status/[token]/page.tsx` now use `sessionStorage` with a `localStorage` fallback.
-
-### 3. Fixed: Clipboard copy fails on non-HTTPS / older iOS
-**Root cause:** `navigator.clipboard.writeText()` is HTTPS-only and not available on all iOS browsers.
-**Fix:** Added `document.execCommand('copy')` fallback + `copyFailed` error state in `share/page.tsx`.
-
-### 4. Fixed: HEIC from iPhone Photos app shows broken image in Chrome/Firefox
-**Root cause:** Commit `e0be67d` added `.heic` to the file input's `accept` attribute → iOS stops auto-converting to JPEG → raw HEIC bytes arrive → Chrome/Firefox cannot display HEIC blob URLs via `<img>`.
-**Fix:** Added `heic2any` package. In `d/[token]/page.tsx`, after AES-GCM decryption, lazily import `heic2any` and convert HEIC/HEIF → JPEG before creating the blob URL. Dynamic import so zero bundle impact for non-HEIC uploads. `setMimeType(displayMime)` ensures `isPDF`/`isImage` checks stay consistent.
-
----
-
-## Previous Session Summary
-**Date:** 2026-02-26 (session 2)
-
-### 1. Fixed: image rendered under the grid overlay (`d/[token]/page.tsx`)
-**Root cause:** `body::before` (grid) has `position: fixed; z-index: 0` — paints over non-positioned block elements.
-**Fix:** Added `position: relative; zIndex: 1` to the outer page wrapper.
-
-### 2. Fixed: Print button printing full page UI + PDF only printing 1 page
-**Root cause:** `window.print()` captures the entire DOM; react-pdf only renders current page as `<canvas>`.
-**Fix:** All printing now uses a hidden `<iframe>`:
-- **PDFs:** `frame.src = blobUrl` — native PDF renderer, all pages
-- **Images:** `contentDocument.write()` with `@page { margin: 0; size: auto }` + `object-fit: contain` — one clean page
-- `afterprint` event cleans up the iframe
-
-### 3. Fixed: Borders on image/PDF viewer looked like part of the document
-**Fix:** Removed `border`, `borderRadius`, `boxShadow` from `<img>` and its wrapper. Added global CSS override `.react-pdf__Page, .react-pdf__Page canvas { box-shadow: none !important; border: none !important; }`.
-
-### 4. Fixed: PrintSafe logo not clickable on home + share pages
-**Fix:** Wrapped logo `<div>` in `<a href="/" style="text-decoration:none; color:inherit">` on `page.tsx` and `share/page.tsx`.
-
-### 5. CLAUDE.md maintenance
-- Removed stale `open index.html` command (file deleted)
-- Fixed Next.js version "14+" → "16"
-- Updated Phase 1 → ✅ COMPLETE, Phase 2 → current
-- Archived old session logs to `tasks/history.md`
-
----
-
-## What's Next (Phase 2 — continued)
-
-1. ~~**Cron cleanup job**~~ ✅ Done
-2. ~~**Dark mode**~~ ✅ Done — session 6
-3. **TTL=0 immediate deletion** — when `ttl_after_view === 0`, delete from R2 + mark deleted after file is served. Use `after()` from `next/server`. Currently blob stays in R2 until cron runs.
-4. **Rate limit hardening** — fail closed when Redis is down (currently fails open)
-5. **CAPTCHA on upload** — hCaptcha or Cloudflare Turnstile
-6. **Vercel deployment** — env vars + CRON_SECRET in Vercel dashboard, configure Vercel Cron for `/api/cron/cleanup`
-7. **Phase 3 prep** — Commercial mode: shop auth, branded pages, live dashboard
+Phase 2 is fully complete. Next up:
+- Commercial mode: shop registration + Supabase Auth (Google OAuth + email OTP)
+- Branded pages per shop
+- Live dashboard with real-time customer sync (WebSocket/SSE)
+- Per-user RLS policies in Supabase
 
 ---
 
 ## Known Issues
 
-| Issue | Severity | Fix |
-|-------|----------|-----|
+| Issue | Severity | Status |
+|-------|----------|--------|
 | ~~No cron cleanup for expired docs~~ | ~~Medium~~ | ✅ Done |
 | ~~DOCX can't be previewed/printed~~ | ~~Medium~~ | ✅ Done — removed |
-| TTL=0 blob stays in R2 after first view | Medium | Phase 2: `after()` from `next/server` |
-| Rate limit fails open if Redis is down | Medium | Phase 2: fail closed |
-| No CAPTCHA on upload | Medium | Phase 2: hCaptcha or Turnstile |
+| ~~TTL=0 blob stays in R2 after first view~~ | ~~Medium~~ | ✅ Done — session 7 |
+| ~~Rate limit fails open if Redis is down~~ | ~~Medium~~ | ✅ Done — session 7 |
+| ~~No CAPTCHA on upload~~ | ~~Medium~~ | ✅ Done — session 7 |
 | Refresh after first view shows "already opened" | Low | Known design trade-off |

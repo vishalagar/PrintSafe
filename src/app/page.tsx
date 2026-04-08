@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import Turnstile from "react-turnstile";
 import {
   capture,
   mimeToFileType,
@@ -9,6 +10,8 @@ import {
   ttlToLabel,
 } from "@/lib/analytics";
 import ThemeToggle from "@/components/ThemeToggle";
+
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "";
 
 const EXPIRY_OPTIONS = [
   { label: "View once", ttl: 0 },
@@ -71,6 +74,8 @@ export default function UploadPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [turnstileKey, setTurnstileKey] = useState(0);
 
   const handleFile = useCallback((f: File) => {
     setError(null);
@@ -127,6 +132,7 @@ export default function UploadPage() {
           "x-filesize": String(file.size),
           "x-mimetype": effectiveMime,
           "x-ttl": String(ttl),
+          "x-captcha-token": captchaToken ?? "",
         },
         body: ciphertext,
       });
@@ -166,6 +172,9 @@ export default function UploadPage() {
       if (!errorTracked) capture("UploadError", { reason: "encryption" });
       setError(err instanceof Error ? err.message : "Something went wrong.");
       setIsUploading(false);
+      // Reset Turnstile so the user can solve it again on retry
+      setCaptchaToken(null);
+      setTurnstileKey((k) => k + 1);
     }
   }
 
@@ -653,21 +662,42 @@ export default function UploadPage() {
             </div>
           )}
 
+          {/* CAPTCHA — only rendered when site key is configured */}
+          {TURNSTILE_SITE_KEY && (
+            <div style={{ marginBottom: 14 }}>
+              <Turnstile
+                key={turnstileKey}
+                sitekey={TURNSTILE_SITE_KEY}
+                onVerify={(token) => setCaptchaToken(token)}
+                onExpire={() => setCaptchaToken(null)}
+                onError={() => setCaptchaToken(null)}
+                theme="auto"
+              />
+            </div>
+          )}
+
           {/* CTA */}
           <button
             onClick={handleUpload}
-            disabled={!file || isUploading}
+            disabled={
+              !file || isUploading || (!!TURNSTILE_SITE_KEY && !captchaToken)
+            }
             style={{
               width: "100%",
               padding: "16px 24px",
               background:
-                file && !isUploading ? "var(--yellow)" : "var(--surface2)",
+                file && !isUploading && !(TURNSTILE_SITE_KEY && !captchaToken)
+                  ? "var(--yellow)"
+                  : "var(--surface2)",
               color: "var(--ink)",
               fontWeight: 700,
               fontSize: 15.5,
               borderRadius: 10,
               border: "2px solid var(--ink)",
-              cursor: file && !isUploading ? "pointer" : "not-allowed",
+              cursor:
+                file && !isUploading && !(TURNSTILE_SITE_KEY && !captchaToken)
+                  ? "pointer"
+                  : "not-allowed",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -675,7 +705,10 @@ export default function UploadPage() {
               boxShadow: "4px 4px 0 var(--ink)",
               transition: "transform 0.1s, box-shadow 0.1s",
               marginBottom: 14,
-              opacity: !file || isUploading ? 0.65 : 1,
+              opacity:
+                !file || isUploading || (!!TURNSTILE_SITE_KEY && !captchaToken)
+                  ? 0.65
+                  : 1,
             }}
           >
             {isUploading ? (
