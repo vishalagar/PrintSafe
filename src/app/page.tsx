@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Turnstile from "react-turnstile";
 import {
@@ -76,6 +76,28 @@ export default function UploadPage() {
   const [error, setError] = useState<string | null>(null);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [turnstileKey, setTurnstileKey] = useState(0);
+  const [docCount, setDocCount] = useState(0);
+
+  // Fetch live document count for trust counter
+  useEffect(() => {
+    fetch("/api/stats")
+      .then((r) => r.json())
+      .then((d) => {
+        // Animate count up
+        const target = d.count ?? 0;
+        const duration = 1500;
+        const start = performance.now();
+        const step = (now: number) => {
+          const progress = Math.min((now - start) / duration, 1);
+          // Ease-out curve
+          const eased = 1 - Math.pow(1 - progress, 3);
+          setDocCount(Math.floor(eased * target));
+          if (progress < 1) requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
+      })
+      .catch(() => setDocCount(0));
+  }, []);
 
   const handleFile = useCallback((f: File) => {
     setError(null);
@@ -288,7 +310,7 @@ export default function UploadPage() {
               animation: "blink 1.5s ease-in-out infinite",
             }}
           />
-          AES-256 Encrypted · Zero Storage
+          AES-256 Encrypted · Auto-Destruct
         </div>
         <h1
           style={{
@@ -303,9 +325,9 @@ export default function UploadPage() {
             animation: "fade-up 0.6s 0.1s ease both",
           }}
         >
-          Print anything.
+          Share privately.
           <br />
-          Leave nothing.
+          Delete automatically.
         </h1>
         <p
           style={{
@@ -320,8 +342,40 @@ export default function UploadPage() {
         >
           Your documents are{" "}
           <strong style={{ fontWeight: 800 }}>encrypted in your browser</strong>
-          , shared via a one-time link, and permanently deleted after printing.
+          , shared via a one-time link, and permanently shredded after viewing.
         </p>
+        {docCount > 0 && (
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              marginTop: 28,
+              fontFamily: "'JetBrains Mono', monospace",
+              fontSize: 13,
+              fontWeight: 700,
+              color: "#FFFFFF",
+              background: "rgba(255,255,255,0.12)",
+              backdropFilter: "blur(8px)",
+              border: "1.5px solid rgba(255,255,255,0.2)",
+              padding: "8px 18px",
+              borderRadius: 100,
+              animation: "fade-up 0.6s 0.3s ease both",
+            }}
+          >
+            <span
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                background: "#4ade80",
+                boxShadow: "0 0 6px #4ade80",
+                animation: "pulse-dot 2s ease-in-out infinite",
+              }}
+            />
+            {docCount.toLocaleString()}+ documents securely shredded
+          </div>
+        )}
       </div>
 
       {/* ── UPLOAD CARD ── */}
@@ -772,7 +826,7 @@ export default function UploadPage() {
               marginBottom: 8,
             }}
           >
-            "Print anything. Leave nothing."
+            "Share privately. Delete automatically."
           </p>
           <p
             style={{
@@ -783,7 +837,7 @@ export default function UploadPage() {
               letterSpacing: "0.5px",
             }}
           >
-            Encrypted in browser · Never stored · Permanent deletion
+            Encrypted in browser · Auto-shredded · Zero trace
           </p>
         </div>
       </footer>

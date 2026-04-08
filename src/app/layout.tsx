@@ -9,30 +9,32 @@ export const metadata: Metadata = {
   verification: {
     google: "-YXV_86XrlY3khfbPPD4XXSsbSU0KBX5emA2M88-4Sk",
   },
-  title: "PrintSafe — Self-Destructing Documents",
+  title: "PrintSafe — Self-Destructing Document Sharing",
   description:
-    "Share sensitive documents securely. Encrypted, one-time links that self-destruct after printing.",
+    "Share sensitive documents securely. Encrypted in your browser, shared via one-time links, and permanently shredded after viewing.",
   keywords: [
     "secure document sharing",
     "self-destructing documents",
     "encrypted file sharing",
     "one-time link",
     "print safe",
-    "secure printing",
+    "document shredding",
+    "auto-delete files",
+    "private file sharing",
   ], 
   openGraph: {
-    title: "PrintSafe — Self-Destructing Documents",
+    title: "PrintSafe — Self-Destructing Document Sharing",
     description:
-      "Share sensitive documents securely. Encrypted, one-time links that self-destruct after printing.",
+      "Share sensitive documents securely. Encrypted in your browser, shared via one-time links, and permanently shredded after viewing.",
     url: "https://printsafe.in",
     type: "website",
     siteName: "PrintSafe",
   },
   twitter: {
     card: "summary_large_image",
-    title: "PrintSafe — Self-Destructing Documents",
+    title: "PrintSafe — Self-Destructing Document Sharing",
     description:
-      "Share sensitive documents securely. Encrypted, one-time links that self-destruct after printing.",
+      "Share sensitive documents securely. Encrypted in your browser, shared via one-time links, and permanently shredded after viewing.",
   },
 };
 
