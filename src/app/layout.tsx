@@ -19,7 +19,7 @@ export const metadata: Metadata = {
     "one-time link",
     "print safe",
     "secure printing",
-  ],
+  ], 
   openGraph: {
     title: "PrintSafe — Self-Destructing Documents",
     description:
