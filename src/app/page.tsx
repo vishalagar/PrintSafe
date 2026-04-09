@@ -272,6 +272,15 @@ export default function UploadPage() {
               color: "inherit",
             }}
           >
+            <img 
+              src="/icon-192.png" 
+              alt="PrintSafe Logo" 
+              style={{ 
+                width: 28, 
+                height: 28, 
+                objectFit: "contain",
+              }} 
+            />
             <span
               style={{
                 fontFamily: "'Fraunces', serif",
