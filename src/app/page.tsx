@@ -272,6 +272,28 @@ export default function UploadPage() {
               color: "inherit",
             }}
           >
+            <div style={{ position: "relative", width: 32, height: 32, flexShrink: 0 }}>
+              <img 
+                src="/icon-192.png" 
+                alt="PrintSafe Logo" 
+                className="logo-light"
+                style={{ 
+                  position: "absolute", top: 0, left: 0,
+                  width: "100%", height: "100%", objectFit: "cover",
+                  borderRadius: "50%", border: "1.5px solid var(--ink)"
+                }} 
+              />
+              <img 
+                src="/icon-dark-192.png" 
+                alt="PrintSafe Logo Dark" 
+                className="logo-dark"
+                style={{ 
+                  position: "absolute", top: 0, left: 0,
+                  width: "100%", height: "100%", objectFit: "cover",
+                  borderRadius: "50%", border: "1.5px solid var(--ink)"
+                }} 
+              />
+            </div>
             <span
               style={{
                 fontFamily: "'Fraunces', serif",
