@@ -46,11 +46,18 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <link rel="manifest" href="/manifest.json" />
         {/* Blocking script: reads localStorage before first paint — prevents FOUC.
             Content is a static string with no user input; safe from XSS. */}
         <script
           dangerouslySetInnerHTML={{
             __html: `try{var t=localStorage.getItem('theme');document.documentElement.dataset.theme=(t==='dark')?'dark':'light'}catch(e){document.documentElement.dataset.theme='light'}`,
+          }}
+        />
+        {/* Register Service Worker for PWA / Web Share Target */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `if ('serviceWorker' in navigator) { window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js', { scope: '/' })); }`,
           }}
         />
       </head>

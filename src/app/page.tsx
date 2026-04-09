@@ -130,6 +130,45 @@ export default function UploadPage() {
     [handleFile],
   );
 
+  // Handle PWA Native Web Share Target
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("shared") !== "1") return;
+
+    const loadSharedFile = async () => {
+      try {
+        const db = await new Promise<IDBDatabase>((resolve, reject) => {
+          const request = indexedDB.open('ps_share', 1);
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error);
+        });
+
+        const sharedFile = await new Promise<File | undefined>((resolve, reject) => {
+          const tx = db.transaction('files', 'readonly');
+          const store = tx.objectStore('files');
+          const request = store.get('shared-file');
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error);
+        });
+
+        if (sharedFile) {
+          handleFile(sharedFile);
+          // Clean up DB so it's fresh for next time
+          const tx = db.transaction('files', 'readwrite');
+          tx.objectStore('files').delete('shared-file');
+        }
+        // Clean the URL
+        router.replace('/');
+      } catch (e) {
+        console.error('Failed to load shared file', e);
+        router.replace('/');
+      }
+    };
+
+    // Short timeout ensures state bounds correctly
+    setTimeout(loadSharedFile, 100);
+  }, [router, handleFile]);
+
   async function handleUpload() {
     if (!file || isUploading) return;
     let errorTracked = false;
