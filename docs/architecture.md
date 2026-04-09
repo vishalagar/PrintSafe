@@ -60,8 +60,9 @@ POST /api/upload                     → Receive encrypted blob, store in R2
 GET  /api/doc/:token                 → Mark viewed, return iv/mimeType/ttl — 410 if already viewed
 GET  /api/file/:token                → Proxy encrypted ciphertext blob from R2 (avoids browser CORS)
 GET  /api/status/:token              → Check status (for uploader)
+GET  /api/stats                       → Public: returns total document count (seeded 1000 + real; 60s cache)
 DEL  /api/doc/:token                 → Manual delete by uploader
-POST /api/cron/cleanup               → Purge expired/stale docs (Authorization: Bearer CRON_SECRET)
+POST /api/cron/cleanup               → Purge expired/stale docs (Authorization: Bearer CRON_SECRET) — daily at 2 AM
 
 # Commercial Mode (auth required except /shop/:slug) — Phase 3
 POST /api/shop/register              → Register shop

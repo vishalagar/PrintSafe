@@ -4,7 +4,7 @@
 > **Session start:** read `tasks/state.md` first — it tells you what was last done and what's next.
 
 ## Project Overview
-Self-destructing document sharing for print shops. Users upload sensitive documents (Aadhaar, bank statements, visa docs), get a one-time encrypted link, share with a print shop — document auto-deletes after printing.
+Self-destructing document sharing. Users upload sensitive documents (Aadhaar, bank statements, visa docs), get a one-time encrypted link — document auto-deletes after viewing. Tagline: "Share privately. Delete automatically."
 
 Two modes: **Personal** (no auth, individual use) and **Commercial** (shop registration, live dashboard, real-time customer sync).
 
@@ -103,8 +103,8 @@ pending → viewed → deleted
 ## Development Phases
 
 - **Phase 1** ✅ COMPLETE: Personal Mode MVP. Upload · encrypt · one-time link · view · auto-delete. No auth.
-- **Phase 2** ← **current**: Security hardening — rate limits, CAPTCHA ~~cron cleanup ✅~~
-- **Phase 3**: Commercial Mode — shop auth, branded pages, live dashboard, WebSocket/SSE
+- **Phase 2** ✅ COMPLETE: Security hardening — rate limits fail-closed, CAPTCHA (Turnstile), TTL=0 immediate deletion, cron cleanup
+- **Phase 3** ← **current**: Commercial Mode — shop auth, branded pages, live dashboard, WebSocket/SSE + PWA
 - **Phase 4**: Polish & scale
 
 **Don't build Phase 2/3 features while working on Phase 1.**

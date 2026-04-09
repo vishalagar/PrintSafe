@@ -111,5 +111,77 @@ Added `userSelect: 'none'` to the top-level viewer div — blocks text selection
 
 ### 4. UX: isPrinting state + spinner on Print button
 While canvas rendering runs (1–3s for multi-page PDFs), the Print button disables itself and shows a spinner + "Preparing print…" label. Prevents double-clicks.
+---
+
+## Session: 2026-03-06 (session 7)
+
+### Phase 2 Security Hardening — all items complete ✅
+
+**1. Rate limit fail-closed** (`src/lib/redis.ts`, `src/app/api/upload/route.ts`)
+- `checkRateLimit` now returns `false` (instead of `true`) when Redis is unavailable
+- Upload route outer catch also changed from `allowed = true` to `allowed = false`
+- Result: Redis outage → all uploads blocked (429), not allowed through
+
+**2. TTL=0 immediate R2 deletion** (`src/app/api/file/[token]/route.ts`)
+- Added `after()` from `next/server` to run cleanup after response is sent
+- When `ttl_after_view === 0` ("view once"): `deleteR2Object()` + status → `deleted` fires immediately post-response
+- DB query updated to select `ttl_after_view` alongside `storage_key` and `status`
+
+**3. CAPTCHA (Cloudflare Turnstile)** (`src/app/page.tsx`, `src/app/api/upload/route.ts`)
+- `react-turnstile` installed; widget renders above submit button when `NEXT_PUBLIC_TURNSTILE_SITE_KEY` is set
+- Submit button disabled until CAPTCHA solved (when site key configured)
+- Widget resets (key increment) after failed upload attempt
+- Server verifies via Turnstile siteverify API; skipped if `TURNSTILE_SECRET_KEY` not set (dev-friendly)
+
+**4. Vercel deployment** (`vercel.json`, `docs/setup.md`)
+- `vercel.json` created with hourly cron for `/api/cron/cleanup`
+- `docs/setup.md` updated with full Vercel deployment instructions + new env vars
+
+---
+
+## Session: 2026-04-09 (session 8)
+
+### UI/UX & Native Polish
+
+**1. Premium System UI Typography** (`src/app/globals.css`, `src/app/layout.tsx`)
+- Removed external Google Fonts (`DM Sans`, `JetBrains Mono`, `Fraunces`).
+- Switched CSS variables to standard native stacks (`-apple-system`, `BlinkMacSystemFont`, `ui-serif`, `ui-monospace`).
+- **Why:** Delivers a high-end, native app feel. Reduces layout shift and FOUC, drastically speeding up initial render times by cutting out third-party network payloads.
+
+**2. Initial SEO setup**
+- Added `sitemap.ts` and `robots.ts` to `src/app/` to configure crawling policies.
+
+---
+
+## Session: 2026-04-09 (session 9)
+
+### SEO & Google Search Console
+- Google site verification meta tag added to `layout.tsx`
+- `metadataBase`, Open Graph, Twitter cards, SEO keywords added
+- Domain verified: `printsafe.in` via DNS TXT record
+
+### Bug Fixes
+**1. Fix: Blank first page when printing 1-page PDFs** (`d/[token]/page.tsx`)
+- Removed `min-height:100vh` from print iframe wrapper (created blank page in print context)
+- Replaced 100ms `setTimeout` with `Promise.all` waiting for all images to load before `print()`
+
+**2. Fix: View-once PDFs disappear when changing pages** (`d/[token]/page.tsx`)
+- TTL=0 `after()` callback marks doc as `deleted` immediately → status poll revoked blob URL
+- Fix: Skip status polling when `ttlAfterView === 0`
+
+### Features
+**3. Live trust counter** (`api/stats/route.ts`, `page.tsx`)
+- `/api/stats` returns 1,000 + actual Supabase count (60s cache)
+- Animated count-up on homepage hero with ease-out curve
+
+**4. Messaging rebrand**
+- Hero: "Share privately. Delete automatically."
+- Description: "permanently shredded after viewing"
+- Footer: "Encrypted in browser · Auto-shredded · Zero trace"
+- All SEO metadata updated to match
+
+**5. Print button** — changed from `🖨 Print` to plain "Print" text
+**6. Footer credit** — "Built by Vishal Agarwal" with LinkedIn link
+**7. Cron schedule** — changed to daily at 2 AM (`0 2 * * *`)
 
 ---
