@@ -356,3 +356,8 @@ body::before {
   body::before { display: none !important; }
   img { max-width: 100% !important; page-break-inside: avoid; }
 }
+
+/* Nav Logo Swap */
+.logo-dark { display: none !important; }
+html[data-theme="dark"] .logo-light { display: none !important; }
+html[data-theme="dark"] .logo-dark { display: block !important; }
