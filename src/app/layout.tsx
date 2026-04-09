@@ -47,7 +47,23 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="manifest" href="/manifest.json" />
+        <link rel="icon" href="/icon-192.png" sizes="192x192" />
+        <link rel="icon" href="/icon-512.png" sizes="512x512" />
         <link rel="apple-touch-icon" href="/icon-192.png" />
+        {/* JSON-LD for Google Search Organization / Logo */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "Organization",
+              name: "PrintSafe",
+              url: "https://printsafe.in",
+              logo: "https://printsafe.in/icon-512.png",
+              image: "https://printsafe.in/icon-512.png",
+            }),
+          }}
+        />
         {/* Blocking script: reads localStorage before first paint — prevents FOUC.
             Content is a static string with no user input; safe from XSS. */}
         <script
