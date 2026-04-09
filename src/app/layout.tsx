@@ -47,6 +47,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="manifest" href="/manifest.json" />
+        <link rel="apple-touch-icon" href="/icon-192.png" />
         {/* Blocking script: reads localStorage before first paint — prevents FOUC.
             Content is a static string with no user input; safe from XSS. */}
         <script
