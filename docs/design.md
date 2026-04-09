@@ -35,10 +35,12 @@ background-size: 44px 44px;
 /* Borders */
 border: 2px solid var(--ink);
 
-/* Fonts */
-Fraunces        → headings (serif, weight 900/700)
-DM Sans         → body text
-JetBrains Mono  → tags, labels, code, mono elements
+/* Fonts — switched to native system stacks (session 8) */
+-apple-system, BlinkMacSystemFont, ui-serif → headings
+-apple-system, BlinkMacSystemFont, sans-serif → body text
+ui-monospace, SFMono-Regular, monospace → tags, labels, mono elements
+/* Note: Fraunces/DM Sans/JetBrains Mono references in inline styles remain
+   as fallbacks but native fonts load first with zero network cost */
 ```
 
 ### Theme System
@@ -71,6 +73,9 @@ Reference files:
 - Expiry pills: `View once` · `15 min` · `30 min` · `1 hour` (30 min pre-selected)
 - CTA: "Encrypt & Create Link" — disabled until file selected, spinner on upload
 - Trust row: 🔒 AES-256 encrypted · ✕ No server storage · 🔗 One-time link
+- Live trust counter below hero: "X,XXX+ documents securely shredded" with animated count-up (seeded at 1,000 + real Supabase count)
+- Hero text: "Share privately. Delete automatically." (rebranded session 9)
+- Footer: "Share privately. Delete automatically." + "Encrypted in browser · Auto-shredded · Zero trace" + "Built by Vishal Agarwal" (LinkedIn)
 
 **`/share` — Link Ready**
 - Full-width read-only link input + copy button
@@ -85,8 +90,8 @@ Reference files:
 - HEIC files: converted to JPEG client-side via `heic2any` before display
 - `user-select: none` on entire viewer root — blocks text selection / ctrl+C
 - Tiled watermark overlay (`position: fixed; z-index: 500; pointer-events: none`) — diagonal `PrintSafe · {token[-8:]} · Print only` at 8% opacity; hidden in print
-- Print: `printPDFViaCanvas()` renders each PDF page to canvas at 2× scale → PNG → hidden iframe → `contentWindow.print()`. No new tab, no Download button, output is rasterized.
-- Print button shows spinner + "Preparing print…" while canvas renders (prevents double-click)
+- Print: `printPDFViaCanvas()` renders each PDF page to canvas at 2× scale → PNG → hidden iframe → `contentWindow.print()`. No new tab, no Download button, output is rasterized. Waits for all images to load via `Promise.all` before calling `print()` (session 9 fix).
+- Print button shows "Print" text (no emoji) + spinner + "Preparing print…" while canvas renders (prevents double-click)
 - Already-used state: full-screen "This document has already been opened"
 
 **`/status/[token]` — Status & Delete**

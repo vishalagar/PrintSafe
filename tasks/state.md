@@ -9,64 +9,66 @@
 ## Current Phase
 **Phase 1 — Personal Mode MVP** ← **FULLY WORKING end-to-end ✅**
 **Phase 2 — Security Hardening** ← **COMPLETE ✅**
-**Phase 3 — Commercial Mode** ← **next**
+**Phase 3 — Commercial Mode & PWA** ← **current**
 
 ---
 
 ## Last Session Summary
-**Date:** 2026-03-06 (session 7)
+**Date:** 2026-04-09 (session 9)
 
-### Phase 2 Security Hardening — all items complete ✅
+### SEO & Google Search Console
 
-**1. Rate limit fail-closed** (`src/lib/redis.ts`, `src/app/api/upload/route.ts`)
-- `checkRateLimit` now returns `false` (instead of `true`) when Redis is unavailable
-- Upload route outer catch also changed from `allowed = true` to `allowed = false`
-- Result: Redis outage → all uploads blocked (429), not allowed through
+**1. Google Search Console Setup** (`src/app/layout.tsx`, `src/app/sitemap.ts`, `src/app/robots.ts`)
+- Added Google site verification meta tag (`-YXV_86XrlY3khfbPPD4XXSsbSU0KBX5emA2M88-4Sk`)
+- Created `sitemap.ts` — generates `/sitemap.xml` listing public pages (`/`, `/share`)
+- Created `robots.ts` — generates `/robots.txt` blocking `/d/`, `/status/`, `/api/` from crawlers
+- Added `metadataBase`, Open Graph, Twitter cards, SEO keywords to root layout
+- **Domain verified:** `printsafe.in` via DNS TXT record (domain property)
 
-**2. TTL=0 immediate R2 deletion** (`src/app/api/file/[token]/route.ts`)
-- Added `after()` from `next/server` to run cleanup after response is sent
-- When `ttl_after_view === 0` ("view once"): `deleteR2Object()` + status → `deleted` fires immediately post-response
-- DB query updated to select `ttl_after_view` alongside `storage_key` and `status`
+### Bug Fixes
 
-**3. CAPTCHA (Cloudflare Turnstile)** (`src/app/page.tsx`, `src/app/api/upload/route.ts`)
-- `react-turnstile` installed; widget renders above submit button when `NEXT_PUBLIC_TURNSTILE_SITE_KEY` is set
-- Submit button disabled until CAPTCHA solved (when site key configured)
-- Widget resets (key increment) after failed upload attempt
-- Server verifies via Turnstile siteverify API; skipped if `TURNSTILE_SECRET_KEY` not set (dev-friendly)
+**2. Fix: Blank first page when printing 1-page PDFs** (`src/app/d/[token]/page.tsx`)
+- **Root cause:** `min-height:100vh` on the page wrapper div in the print iframe created a blank viewport-height page in print context. The separate footer `<div>` also forced a second page.
+- **Fix:** Removed `min-height:100vh` and `display:flex`, moved footer inline on the last page, used `page-break-inside:avoid` instead.
+- Also replaced the 100ms `setTimeout` before `print()` with `Promise.all` waiting for all images to load — ensures large 2× PNG data URLs are fully decoded before printing.
 
-**4. Vercel deployment** (`vercel.json`, `docs/setup.md`)
-- `vercel.json` created with hourly cron for `/api/cron/cleanup`
-- `docs/setup.md` updated with full Vercel deployment instructions + new env vars
+**3. Fix: View-once PDFs disappear when changing pages** (`src/app/d/[token]/page.tsx`)
+- **Root cause:** With TTL=0, the `after()` callback marks the document as `deleted` in the DB immediately after serving. The 5-second status poll detects `deleted` and revokes the blob URL while the user is still viewing.
+- **Fix:** Skip status polling when `ttlAfterView === 0`. The document is already decrypted in browser memory — R2 cleanup happened, no need to poll.
 
----
+### Feature: Live Trust Counter & Messaging Rebrand
 
-## Previous Session Summary
-**Date:** 2026-02-27 (session 5)
+**4. Live trust counter** (`src/app/api/stats/route.ts`, `src/app/page.tsx`)
+- New `/api/stats` API route — returns `1,000 + actual Supabase document count` (60s cache)
+- Animated count-up on homepage hero (ease-out curve, 1.5s duration)
+- Green pulsing dot + glassmorphism pill: "1,247+ documents securely shredded"
 
-### 1. Security: PDF print — eliminated blob URL new-tab exposure
-**Problem:** `window.open(blobUrl, '_blank')` exposed the raw PDF in a new tab with a native Download button, bypassing PrintSafe's one-time-use intent entirely.
-**Fix:** `printPDFViaCanvas()` in `d/[token]/page.tsx` — uses `pdfjs-dist` (already a dependency) to render each page to canvas at 2× scale, serialises to PNG data URLs, writes all pages into a hidden iframe, calls `frame.contentWindow.print()`. No new tab; no Download button in the PDF viewer. "Save as PDF" output is rasterized images, not the original vector PDF.
-**Bonus:** Print footer embedded in iframe HTML — `PrintSafe — authorised print copy · {token.slice(-8)} · {date}` — makes any "Save as PDF" output traceable.
+**5. Messaging rebrand** (`src/app/page.tsx`, `src/app/layout.tsx`)
+- Hero: "Print anything. Leave nothing." → **"Share privately. Delete automatically."**
+- Badge: "AES-256 Encrypted · Zero Storage" → **"AES-256 Encrypted · Auto-Destruct"**
+- Description: "permanently deleted after printing" → **"permanently shredded after viewing"**
+- Footer: **"Share privately. Delete automatically."** + **"Encrypted in browser · Auto-shredded · Zero trace"**
+- All SEO metadata (title, description, Open Graph, Twitter) updated to match
 
-### 2. Security: Watermark overlay for screenshot deterrence
-**Problem:** Documents rendered in plain HTML/canvas — screenshots untraceable.
-**Fix:** `position: fixed; inset: 0; pointer-events: none; z-index: 500` div with a tiled SVG background. Diagonal text `PrintSafe · {token[-8:]} · Print only` at 8% opacity. Visible in screenshots/screen recordings; hidden in print (`no-print` class). Token suffix makes each link's screenshots distinguishable.
+**6. Print button text** (`src/app/d/[token]/page.tsx`)
+- Changed from `🖨 Print` emoji to plain **"Print"** text
 
-### 3. Security: `user-select: none` on viewer root
-Added `userSelect: 'none'` to the top-level viewer div — blocks text selection and ctrl+C from the document viewer page.
+**7. Footer credit** (`src/app/page.tsx`)
+- Added "Built by [Vishal Agarwal](https://www.linkedin.com/in/vishal-agarwal123/)" with LinkedIn link
 
-### 4. UX: isPrinting state + spinner on Print button
-While canvas rendering runs (1–3s for multi-page PDFs), the Print button disables itself and shows a spinner + "Preparing print…" label. Prevents double-clicks.
+**8. Cron schedule** (`vercel.json`)
+- Changed from hourly (`0 * * * *`) to daily at 2 AM (`0 2 * * *`)
 
 ---
 
 ## What's Next (Phase 3)
 
 Phase 2 is fully complete. Next up:
-- Commercial mode: shop registration + Supabase Auth (Google OAuth + email OTP)
-- Branded pages per shop
-- Live dashboard with real-time customer sync (WebSocket/SSE)
-- Per-user RLS policies in Supabase
+- Build **Progressive Web App (PWA)** capability with `manifest.json` and `service-worker.js`.
+- Enable **Native Share Target API** so mobile users can "Share" from their Camera Roll direct to PrintSafe.
+- Commercial mode: shop registration + Supabase Auth (Google OAuth + email OTP).
+- Branded pages per shop.
+- Live dashboard with real-time customer sync (WebSocket/SSE).
 
 ---
 
@@ -74,9 +76,4 @@ Phase 2 is fully complete. Next up:
 
 | Issue | Severity | Status |
 |-------|----------|--------|
-| ~~No cron cleanup for expired docs~~ | ~~Medium~~ | ✅ Done |
-| ~~DOCX can't be previewed/printed~~ | ~~Medium~~ | ✅ Done — removed |
-| ~~TTL=0 blob stays in R2 after first view~~ | ~~Medium~~ | ✅ Done — session 7 |
-| ~~Rate limit fails open if Redis is down~~ | ~~Medium~~ | ✅ Done — session 7 |
-| ~~No CAPTCHA on upload~~ | ~~Medium~~ | ✅ Done — session 7 |
 | Refresh after first view shows "already opened" | Low | Known design trade-off |

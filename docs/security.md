@@ -37,6 +37,7 @@ Canonical record of every security decision, pattern, and known gap.
 | `/api/doc/:token` | DELETE | `x-delete-token` header must match DB `delete_token` value |
 | `/api/file/:token` | GET | Token lookup + status gate (410 if `deleted`/`expired`; allows `viewed`) |
 | `/api/status/:token` | GET | Token lookup (read-only) |
+| `/api/stats` | GET | None — public, read-only aggregate count |
 | `/api/cron/cleanup` | POST | `Authorization: Bearer {CRON_SECRET}` |
 | Commercial routes (Phase 3) | * | `Authorization: Bearer <supabase-jwt>` |
 
@@ -91,7 +92,7 @@ Canonical record of every security decision, pattern, and known gap.
 | Watermark overlay | `position:fixed; z-index:500; pointer-events:none` — diagonal "PrintSafe · {token[-8:]} · Print only" at 8% opacity; `@media print { display:none }` hides it from print output |
 | Rasterized PDF print | `printPDFViaCanvas()` renders each page to `<canvas>` → PNG → hidden iframe → `window.print()` — no Download button, no native PDF exposed |
 | Print footer | `PrintSafe — authorised print copy · {token[-8:]} · {date}` embedded in print output |
-| Remote-delete polling | Viewer polls `/api/status/:token` every 5 s; revokes blob URL immediately if status is `deleted` or `expired` |
+| Remote-delete polling | Viewer polls `/api/status/:token` every 5 s; revokes blob URL immediately if status is `deleted` or `expired`. **Exception:** polling is skipped for TTL=0 (view-once) documents — the file is deleted from R2 immediately via `after()`, so polling would prematurely revoke the blob while the user is still viewing. |
 
 ---
 
@@ -132,6 +133,7 @@ Canonical record of every security decision, pattern, and known gap.
 
 | Date | Change |
 |------|--------|
+| 2026-04-09 | SEO: sitemap.ts, robots.ts, Google site verification, Open Graph/Twitter metadata. Fixed blank 1st page in PDF print (removed `min-height:100vh`). Fixed view-once PDFs disappearing on page change (skip status polling for TTL=0). Added `/api/stats` public route. (session 9) |
 | 2026-03-06 | Rate limit fail-closed; TTL=0 immediate R2 deletion via `after()`; Cloudflare Turnstile CAPTCHA on upload (session 7) |
 | 2026-02-27 | Added: rasterized PDF print via canvas, watermark overlay, `userSelect:none`, remote-delete polling (session 5) |
 | 2026-02-26 | Added: cron cleanup route (`/api/cron/cleanup`), HEIC/HEIF support, one-time 410 gate extended to `viewed` status |

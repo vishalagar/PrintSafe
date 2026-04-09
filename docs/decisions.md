@@ -11,7 +11,7 @@
 | Manual delete | `delete_token` returned at upload; stored in `localStorage` | No login needed in Phase 1 |
 | Auth | None in Phase 1 | Reduces friction; auth comes in Phase 3 |
 | Component library | shadcn/ui + Tailwind | Accessible components, no heavy library |
-| Fonts | Fraunces (headings) · DM Sans (body) · JetBrains Mono (labels) | Fraunces adds personality; DM Sans handles Hindi well; Mono for labels |
+| Fonts | Native system stacks (`-apple-system`, `ui-serif`, `ui-monospace`) | Zero network cost, no FOUC, native feel. Switched from Google Fonts in session 8 |
 | App name | PrintSafe (working name) | Final branding TBD |
 
 ## Rejected Alternatives
