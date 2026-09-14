@@ -18,7 +18,8 @@ CREATE TABLE documents (
   expires_at    TIMESTAMPTZ NOT NULL,
   ttl_after_view INTEGER DEFAULT 1800,
   ip_hash       VARCHAR(64),
-  created_at    TIMESTAMPTZ DEFAULT now()
+  created_at    TIMESTAMPTZ DEFAULT now(),
+  confirmed_at  TIMESTAMPTZ
 );
 
 CREATE UNIQUE INDEX idx_token ON documents(token);
@@ -26,6 +27,22 @@ CREATE INDEX idx_status   ON documents(status);
 CREATE INDEX idx_expires  ON documents(expires_at);
 ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
 ```
+
+### Manual migration — presigned upload flow (session 10, 2026-09-14)
+
+Run once in the Supabase SQL editor. Adds a nullable `confirmed_at` column
+instead of a new `status` enum value, to avoid touching the `status` CHECK
+constraint and every place in the codebase that already branches on `status`.
+
+```sql
+ALTER TABLE documents ADD COLUMN confirmed_at TIMESTAMPTZ;
+```
+
+A `'pending'` row with `confirmed_at IS NULL` means the client received a
+presigned R2 upload URL but hasn't (yet, or ever) confirmed the ciphertext
+landed — see `docs/security.md` section B. No index is added on
+`confirmed_at`; the cron cleanup query filters on `status` (already indexed
+via `idx_status`) first, so a full index isn't warranted at current scale.
 
 > RLS is ON — all Phase 1 API access uses the `service_role` key in server-side routes only. The anon key never touches this table directly.
 
@@ -50,3 +67,4 @@ pending → viewed → deleted
 - `iv` — AES-GCM initialisation vector stored server-side (safe — useless without the key, which never reaches server).
 - `ip_hash` — hashed viewer IP for audit, not raw PII.
 - `ttl_after_view` default: 1800 seconds (30 min). Options: 0 (view-once), 900 (15min), 1800 (30min), 3600 (1hr).
+- `confirmed_at` — NULL until `/api/upload/confirm` verifies the presigned R2 PUT actually landed. A `'pending'` row with `confirmed_at IS NULL` is not a viewable document; `/api/doc/:token` and `/api/file/:token` 404 on it, and cron deletes it outright if it stays unconfirmed past 1 hour.

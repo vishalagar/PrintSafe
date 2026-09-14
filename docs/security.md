@@ -23,7 +23,9 @@ Canonical record of every security decision, pattern, and known gap.
 - **Key generation:** Client-side only (`src/lib/crypto.ts` — `'use client'` enforced; never import server-side)
 - **Key transport:** Exported → base64url → appended as URL `#fragment` only (never in path, query, or request body)
 - **IV:** 12-byte random, stored server-side in Supabase (safe — useless without key)
-- **Ciphertext flow:** client encrypts → POST `/api/upload` (binary body) → R2 as `application/octet-stream` under opaque UUID key
+- **Ciphertext flow (presigned upload):** client encrypts → POST `/api/upload` (metadata only, headers, no body) returns a presigned R2 PUT URL → browser `PUT`s ciphertext **directly to R2** as `application/octet-stream` under an opaque UUID key (never through the Vercel function body) → client `POST`s `/api/upload/confirm` `{ token }`, which `HeadObjectCommand`s R2 to verify the object landed and roughly matches the declared size, then marks the document row confirmed
+  - **Why:** Vercel serverless function request bodies are capped at ~4.5 MB; the app allows files up to 25 MB (`MAX_FILE_SIZE`). Routing ciphertext through the function body silently 413'd every upload above ~4.5 MB. The presigned-PUT flow removes the Vercel body entirely from the upload path.
+  - **Unconfirmed uploads are not real documents:** a `documents` row is inserted at presign time with `confirmed_at IS NULL`. `/api/doc/:token` and `/api/file/:token` treat `status = 'pending' AND confirmed_at IS NULL` as **not found** — a token can't be used to probe metadata or ciphertext for a blob that may not exist yet. The cron cleanup job (`/api/cron/cleanup`) deletes rows that stay unconfirmed for more than 1 hour, best-effort deleting the (possibly nonexistent) R2 object too.
 - **Decryption flow:** GET `/api/doc/:token` (returns iv + metadata) → GET `/api/file/:token` (proxies ciphertext from R2) → browser decrypts with `#fragment` key
 
 ---
@@ -32,10 +34,11 @@ Canonical record of every security decision, pattern, and known gap.
 
 | Route | Method | Auth mechanism |
 |-------|--------|----------------|
-| `/api/upload` | POST | None (personal mode) — rate-limited by IP via Upstash |
-| `/api/doc/:token` | GET | Token lookup + status gate (410 if `viewed`/`deleted`/`expired`) |
+| `/api/upload` | POST | None (personal mode) — rate-limited by IP via Upstash + CAPTCHA. Issues a presigned R2 PUT URL; no file body accepted here |
+| `/api/upload/confirm` | POST | Token lookup only (token is an unguessable nanoid). Verifies the R2 object via `HeadObjectCommand` before marking the row confirmed |
+| `/api/doc/:token` | GET | Token lookup + confirmed-upload gate (404 if unconfirmed) + status gate (410 if `viewed`/`deleted`/`expired`) |
 | `/api/doc/:token` | DELETE | `x-delete-token` header must match DB `delete_token` value |
-| `/api/file/:token` | GET | Token lookup + status gate (410 if `deleted`/`expired`; allows `viewed`) |
+| `/api/file/:token` | GET | Token lookup + confirmed-upload gate (404 if unconfirmed) + status gate (410 if `deleted`/`expired`; allows `viewed`) |
 | `/api/status/:token` | GET | Token lookup (read-only) |
 | `/api/stats` | GET | None — public, read-only aggregate count |
 | `/api/cron/cleanup` | POST | `Authorization: Bearer {CRON_SECRET}` |
@@ -74,7 +77,9 @@ Canonical record of every security decision, pattern, and known gap.
 
 ## G. R2 Storage Security
 
-- No public bucket access — pre-signed URLs only (60-second expiry)
+- No public bucket access — pre-signed URLs only (60-second expiry for downloads via `getPresignedDownloadUrl`; 5-minute expiry for uploads via `getPresignedUploadUrl`, to give a slow connection enough time to PUT up to 25 MB)
+- Upload presign fixes `ContentType: application/octet-stream` — the client's PUT must send the same header or the signature won't match
+- `/api/upload/confirm` cross-checks the real R2 object size (`HeadObjectCommand`) against the size declared at `/api/upload` time (± a small tolerance for the AES-GCM auth tag) before marking a document confirmed — stops a client from swapping in a wildly different-sized payload than it declared
 - 25-hour R2 lifecycle rule as last-resort safety net for orphaned blobs
 - Ciphertext stored as `application/octet-stream` — browser cannot render directly
 - `Cache-Control: no-store, no-cache` on all file proxy responses
@@ -133,6 +138,7 @@ Canonical record of every security decision, pattern, and known gap.
 
 | Date | Change |
 |------|--------|
+| 2026-09-14 | **Presigned R2 upload flow** — fixes files 4.5–25 MB silently failing (Vercel serverless body cap ~4.5 MB, app allows up to 25 MB). `/api/upload` now returns a presigned R2 PUT URL instead of accepting the ciphertext body; browser PUTs directly to R2; new `/api/upload/confirm` verifies the object landed (`HeadObjectCommand`, size cross-check) before the document is servable. Added nullable `documents.confirmed_at` column — a `'pending'` row with `confirmed_at IS NULL` is an in-progress/abandoned upload, not a real document; `/api/doc/:token` and `/api/file/:token` now 404 on it instead of leaking metadata or attempting to proxy a nonexistent blob. Cron cleanup gained a third pass purging rows unconfirmed for over 1 hour (session 10) |
 | 2026-04-09 | SEO: sitemap.ts, robots.ts, Google site verification, Open Graph/Twitter metadata. Fixed blank 1st page in PDF print (removed `min-height:100vh`). Fixed view-once PDFs disappearing on page change (skip status polling for TTL=0). Added `/api/stats` public route. (session 9) |
 | 2026-03-06 | Rate limit fail-closed; TTL=0 immediate R2 deletion via `after()`; Cloudflare Turnstile CAPTCHA on upload (session 7) |
 | 2026-02-27 | Added: rasterized PDF print via canvas, watermark overlay, `userSelect:none`, remote-delete polling (session 5) |
