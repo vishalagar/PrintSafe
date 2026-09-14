@@ -52,69 +52,36 @@ uploads:
 - `src/app/page.tsx` — `handleUpload()` now does presign → PUT → confirm
 - `docs/security.md`, `docs/schema.md` — updated per rule #8
 
-**⚠️ Manual SQL required before this works in prod/staging:**
-```sql
-ALTER TABLE documents ADD COLUMN confirmed_at TIMESTAMPTZ;
-```
-Run this in the Supabase SQL editor (see `docs/schema.md`). Until it's run,
-every `/api/upload` insert will fail (unknown column) — this needs to happen
-before deploying this change.
+**Migration:** `ALTER TABLE documents ADD COLUMN confirmed_at TIMESTAMPTZ;` —
+✅ run in Supabase (production).
 
-**Verified:** `npx tsc --noEmit` clean, `npm run build` succeeds (confirms
-`/api/upload/confirm` route registers correctly). `npm run lint` has ~19
-pre-existing errors/warnings unrelated to this change (stray `<a>` tags,
-`ThemeToggle` effect warning, etc.) — none in the touched files' new code.
-**Not tested end-to-end** — no live Supabase/R2/Redis in this environment.
-Please smoke-test a real upload (ideally an 8–20 MB file) after running the
-migration above.
+**Also this session:**
+- Extended the same `confirmed_at` gate to `/api/status/[token]/route.ts`
+  (previously only `/api/doc` and `/api/file` hid unconfirmed uploads —
+  `/api/status` was leaking `pending` status for rows with no blob yet).
+- **R2 CORS was missing** — the presigned-PUT flow requires the browser to
+  send a cross-origin `PUT` straight to R2, which needs a bucket CORS policy;
+  it never needed one before (server SDK calls aren't subject to CORS). First
+  real upload attempt failed with `curl` succeeding but the browser failing —
+  confirmed via `OPTIONS` preflight returning `"CORS not configured for this
+  bucket"`. Fixed by adding a CORS policy in the Cloudflare dashboard (R2 →
+  print-safe-documents → Settings) allowing `PUT` from `https://www.printsafe.in`,
+  `https://printsafe.in`, and `http://localhost:3000`. The app's own R2 API
+  token doesn't have bucket-admin scope, so this can't be set from the app's
+  env credentials — dashboard (or a broader-scoped token) is required.
+- Merged `dev` → `main` and deployed. **Note:** `main` has a GitHub ruleset
+  requiring linear history (no merge commits) — used `git merge --squash`
+  instead of a normal merge. Live on `main` @ `0460dba`, Vercel deployment
+  `dpl_2f52nUa82GzzaQ2HhqJn1myauNsv`, READY, production.
 
----
-
-## Previous Session Summary
-**Date:** 2026-04-09 (session 9)
-
-### SEO & Google Search Console
-
-**1. Google Search Console Setup** (`src/app/layout.tsx`, `src/app/sitemap.ts`, `src/app/robots.ts`)
-- Added Google site verification meta tag (`-YXV_86XrlY3khfbPPD4XXSsbSU0KBX5emA2M88-4Sk`)
-- Created `sitemap.ts` — generates `/sitemap.xml` listing public pages (`/`, `/share`)
-- Created `robots.ts` — generates `/robots.txt` blocking `/d/`, `/status/`, `/api/` from crawlers
-- Added `metadataBase`, Open Graph, Twitter cards, SEO keywords to root layout
-- **Domain verified:** `printsafe.in` via DNS TXT record (domain property)
-
-### Bug Fixes
-
-**2. Fix: Blank first page when printing 1-page PDFs** (`src/app/d/[token]/page.tsx`)
-- **Root cause:** `min-height:100vh` on the page wrapper div in the print iframe created a blank viewport-height page in print context. The separate footer `<div>` also forced a second page.
-- **Fix:** Removed `min-height:100vh` and `display:flex`, moved footer inline on the last page, used `page-break-inside:avoid` instead.
-- Also replaced the 100ms `setTimeout` before `print()` with `Promise.all` waiting for all images to load — ensures large 2× PNG data URLs are fully decoded before printing.
-
-**3. Fix: View-once PDFs disappear when changing pages** (`src/app/d/[token]/page.tsx`)
-- **Root cause:** With TTL=0, the `after()` callback marks the document as `deleted` in the DB immediately after serving. The 5-second status poll detects `deleted` and revokes the blob URL while the user is still viewing.
-- **Fix:** Skip status polling when `ttlAfterView === 0`. The document is already decrypted in browser memory — R2 cleanup happened, no need to poll.
-
-### Feature: Live Trust Counter & Messaging Rebrand
-
-**4. Live trust counter** (`src/app/api/stats/route.ts`, `src/app/page.tsx`)
-- New `/api/stats` API route — returns `1,000 + actual Supabase document count` (60s cache)
-- Animated count-up on homepage hero (ease-out curve, 1.5s duration)
-- Green pulsing dot + glassmorphism pill: "1,247+ documents securely shredded"
-
-**5. Messaging rebrand** (`src/app/page.tsx`, `src/app/layout.tsx`)
-- Hero: "Print anything. Leave nothing." → **"Share privately. Delete automatically."**
-- Badge: "AES-256 Encrypted · Zero Storage" → **"AES-256 Encrypted · Auto-Destruct"**
-- Description: "permanently deleted after printing" → **"permanently shredded after viewing"**
-- Footer: **"Share privately. Delete automatically."** + **"Encrypted in browser · Auto-shredded · Zero trace"**
-- All SEO metadata (title, description, Open Graph, Twitter) updated to match
-
-**6. Print button text** (`src/app/d/[token]/page.tsx`)
-- Changed from `🖨 Print` emoji to plain **"Print"** text
-
-**7. Footer credit** (`src/app/page.tsx`)
-- Added "Built by [Vishal Agarwal](https://www.linkedin.com/in/vishal-agarwal123/)" with LinkedIn link
-
-**8. Cron schedule** (`vercel.json`)
-- Changed from hourly (`0 * * * *`) to daily at 2 AM (`0 2 * * *`)
+**Verified:** `npx tsc --noEmit` clean, `npm run build` succeeds. The original
+Vercel-413 failure was diagnosed from an 8 MB PNG that failed on production
+before this fix (not separately reproduced locally, since the body limit is
+Vercel-platform-specific and doesn't apply to `next dev`). The CORS failure
+*was* reproduced live via Chrome browser automation against local dev after
+the presigned-upload code was in place, root-caused via an `OPTIONS`
+preflight returning `"CORS not configured for this bucket"`. User confirmed
+the upload succeeds end-to-end in production after both fixes were applied.
 
 ---
 

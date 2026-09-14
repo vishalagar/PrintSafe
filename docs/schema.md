@@ -28,7 +28,7 @@ CREATE INDEX idx_expires  ON documents(expires_at);
 ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
 ```
 
-### Manual migration — presigned upload flow (session 10, 2026-09-14)
+### Manual migration — presigned upload flow (session 10, 2026-09-14) ✅ applied
 
 Run once in the Supabase SQL editor. Adds a nullable `confirmed_at` column
 instead of a new `status` enum value, to avoid touching the `status` CHECK
