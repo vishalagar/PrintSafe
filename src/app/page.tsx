@@ -138,30 +138,32 @@ export default function UploadPage() {
     const loadSharedFile = async () => {
       try {
         const db = await new Promise<IDBDatabase>((resolve, reject) => {
-          const request = indexedDB.open('ps_share', 1);
+          const request = indexedDB.open("ps_share", 1);
           request.onsuccess = () => resolve(request.result);
           request.onerror = () => reject(request.error);
         });
 
-        const sharedFile = await new Promise<File | undefined>((resolve, reject) => {
-          const tx = db.transaction('files', 'readonly');
-          const store = tx.objectStore('files');
-          const request = store.get('shared-file');
-          request.onsuccess = () => resolve(request.result);
-          request.onerror = () => reject(request.error);
-        });
+        const sharedFile = await new Promise<File | undefined>(
+          (resolve, reject) => {
+            const tx = db.transaction("files", "readonly");
+            const store = tx.objectStore("files");
+            const request = store.get("shared-file");
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+          },
+        );
 
         if (sharedFile) {
           handleFile(sharedFile);
           // Clean up DB so it's fresh for next time
-          const tx = db.transaction('files', 'readwrite');
-          tx.objectStore('files').delete('shared-file');
+          const tx = db.transaction("files", "readwrite");
+          tx.objectStore("files").delete("shared-file");
         }
         // Clean the URL
-        router.replace('/');
+        router.replace("/");
       } catch (e) {
-        console.error('Failed to load shared file', e);
-        router.replace('/');
+        console.error("Failed to load shared file", e);
+        router.replace("/");
       }
     };
 
@@ -184,10 +186,11 @@ export default function UploadPage() {
 
       const effectiveMime = getEffectiveMime(file);
 
+      // Step 1: request a presigned R2 upload URL. Metadata only, no body —
+      // rate limit + CAPTCHA are enforced server-side on this call.
       const res = await fetch("/api/upload", {
         method: "POST",
         headers: {
-          "Content-Type": "application/octet-stream",
           "x-iv": iv,
           "x-filename": encodeURIComponent(file.name),
           "x-filesize": String(file.size),
@@ -195,7 +198,6 @@ export default function UploadPage() {
           "x-ttl": String(ttl),
           "x-captcha-token": captchaToken ?? "",
         },
-        body: ciphertext,
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -210,7 +212,45 @@ export default function UploadPage() {
         );
       }
 
-      const { token, deleteToken } = await res.json();
+      const { token, deleteToken, uploadUrl } = await res.json();
+
+      // Step 2: PUT the ciphertext directly to R2 — bypasses the Vercel
+      // function body limit entirely, so files up to 25 MB actually make it through.
+      let putRes: Response;
+      try {
+        putRes = await fetch(uploadUrl, {
+          method: "PUT",
+          headers: { "Content-Type": "application/octet-stream" },
+          body: ciphertext,
+        });
+      } catch {
+        capture("UploadError", { reason: "storage" });
+        errorTracked = true;
+        throw new Error(
+          "Upload to storage failed. Please check your connection and try again.",
+        );
+      }
+      if (!putRes.ok) {
+        capture("UploadError", { reason: "storage" });
+        errorTracked = true;
+        throw new Error("Upload to storage failed. Please try again.");
+      }
+
+      // Step 3: confirm the upload landed so the document becomes viewable.
+      const confirmRes = await fetch("/api/upload/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      });
+      if (!confirmRes.ok) {
+        const data = await confirmRes.json().catch(() => ({}));
+        capture("UploadError", { reason: "confirm" });
+        errorTracked = true;
+        throw new Error(
+          data.error ?? "Could not confirm upload. Please try again.",
+        );
+      }
+
       const keyStr = await keyToBase64url(key);
       capture("UploadSuccess", {
         fileType: mimeToFileType(effectiveMime),
@@ -272,26 +312,43 @@ export default function UploadPage() {
               color: "inherit",
             }}
           >
-            <div style={{ position: "relative", width: 32, height: 32, flexShrink: 0 }}>
-              <img 
-                src="/icon-192.png" 
-                alt="PrintSafe Logo" 
+            <div
+              style={{
+                position: "relative",
+                width: 32,
+                height: 32,
+                flexShrink: 0,
+              }}
+            >
+              <img
+                src="/icon-192.png"
+                alt="PrintSafe Logo"
                 className="logo-light"
-                style={{ 
-                  position: "absolute", top: 0, left: 0,
-                  width: "100%", height: "100%", objectFit: "cover",
-                  borderRadius: "50%", border: "1.5px solid var(--ink)"
-                }} 
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
+                  borderRadius: "50%",
+                  border: "1.5px solid var(--ink)",
+                }}
               />
-              <img 
-                src="/icon-dark-192.png" 
-                alt="PrintSafe Logo Dark" 
+              <img
+                src="/icon-dark-192.png"
+                alt="PrintSafe Logo Dark"
                 className="logo-dark"
-                style={{ 
-                  position: "absolute", top: 0, left: 0,
-                  width: "100%", height: "100%", objectFit: "cover",
-                  borderRadius: "50%", border: "1.5px solid var(--ink)"
-                }} 
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
+                  borderRadius: "50%",
+                  border: "1.5px solid var(--ink)",
+                }}
               />
             </div>
             <span

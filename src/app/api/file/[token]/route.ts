@@ -31,7 +31,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
 
   const { data: docData, error } = await supabase
     .from("documents")
-    .select("storage_key, status, ttl_after_view")
+    .select("storage_key, status, ttl_after_view, confirmed_at")
     .eq("token", token)
     .single();
 
@@ -41,8 +41,15 @@ export async function GET(req: NextRequest, context: RouteContext) {
 
   const doc = docData as Pick<
     DocumentRow,
-    "storage_key" | "status" | "ttl_after_view"
+    "storage_key" | "status" | "ttl_after_view" | "confirmed_at"
   >;
+
+  // Unconfirmed upload — no verified object in R2 yet (or the upload was
+  // abandoned). Treat like a nonexistent document rather than attempting to
+  // proxy a blob that may not exist.
+  if (doc.status === "pending" && !doc.confirmed_at) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
 
   if (doc.status === "deleted" || doc.status === "expired") {
     return NextResponse.json({ error: "gone" }, { status: 410 });

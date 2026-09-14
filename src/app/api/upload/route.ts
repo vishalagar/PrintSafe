@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { nanoid } from "nanoid";
 import { createHash } from "crypto";
 import { createServerSupabaseClient } from "@/lib/supabase";
-import { uploadEncryptedBlob, deleteR2Object } from "@/lib/r2";
+import { getPresignedUploadUrl } from "@/lib/r2";
 import { checkRateLimit } from "@/lib/redis";
 
 const ALLOWED_MIMES = [
@@ -17,6 +17,14 @@ const MAX_FILE_SIZE = 26_214_400; // 25 MB
 
 const ALLOWED_TTLS = [0, 900, 1800, 3600];
 
+// Presigned PUT URL expiry — generous enough for a slow connection to finish
+// uploading up to 25 MB before the URL expires.
+const UPLOAD_URL_EXPIRES_IN = 300; // 5 minutes
+
+// Ciphertext never touches this function's body — Vercel serverless functions
+// cap request bodies at ~4.5 MB, well under the app's 25 MB file limit. This
+// route only issues a presigned R2 PUT URL; the browser uploads ciphertext
+// directly to R2, then calls /api/upload/confirm once the PUT succeeds.
 export async function POST(req: NextRequest) {
   // 1. Rate limit by IP
   const ip =
@@ -56,14 +64,13 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // 3. Read metadata from headers (avoids multipart/formData parsing issues)
+  // 3. Read metadata from headers — no body is read on this request
   const iv = req.headers.get("x-iv");
   const fileNameRaw = req.headers.get("x-filename");
   const fileSizeRaw = req.headers.get("x-filesize");
   const mimeType = req.headers.get("x-mimetype");
   const ttlAfterViewRaw = req.headers.get("x-ttl");
 
-  // 3. Validate presence
   if (!iv || !fileNameRaw || !fileSizeRaw || !mimeType || !ttlAfterViewRaw) {
     return NextResponse.json(
       { error: "Missing required fields" },
@@ -94,40 +101,19 @@ export async function POST(req: NextRequest) {
       .trim()
       .slice(0, 255) || "document";
 
-  // 4. Read ciphertext from request body
-  let buffer: Buffer;
-  try {
-    buffer = Buffer.from(await req.arrayBuffer());
-  } catch {
-    return NextResponse.json(
-      { error: "Failed to read file data" },
-      { status: 400 },
-    );
-  }
-
-  if (buffer.length === 0) {
-    return NextResponse.json({ error: "Empty file data" }, { status: 400 });
-  }
-
-  // 5. Generate identifiers — storageKey is always an opaque UUID
+  // 4. Generate identifiers — storageKey is always an opaque UUID
   const storageKey = crypto.randomUUID();
   const token = nanoid(21);
   const deleteToken = nanoid(21);
 
-  // 6. Upload to R2
-  try {
-    await uploadEncryptedBlob(storageKey, buffer, "application/octet-stream");
-  } catch {
-    return NextResponse.json(
-      { error: "Storage upload failed" },
-      { status: 500 },
-    );
-  }
-
-  // 7. Hash IP — store only the hash, never the raw IP
+  // 5. Hash IP — store only the hash, never the raw IP
   const ipHash = createHash("sha256").update(ip).digest("hex");
 
-  // 8. Insert into Supabase
+  // 6. Insert the document row up front, in an unconfirmed state
+  // (confirmed_at IS NULL). No R2 object exists yet — the client hasn't
+  // uploaded ciphertext at this point, only requested a place to put it.
+  // /api/upload/confirm flips confirmed_at once the PUT is verified; the
+  // cron cleanup job purges rows that never get confirmed.
   const supabase = createServerSupabaseClient();
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
@@ -143,17 +129,30 @@ export async function POST(req: NextRequest) {
     expires_at: expiresAt,
     ttl_after_view: ttlAfterView,
     ip_hash: ipHash,
+    confirmed_at: null,
   });
 
   if (dbError) {
-    // Clean up R2 object if DB insert fails — best-effort
-    try {
-      await deleteR2Object(storageKey);
-    } catch {
-      // ignore cleanup error; R2 lifecycle rule will purge it
-    }
     return NextResponse.json({ error: "Upload failed" }, { status: 500 });
   }
 
-  return NextResponse.json({ token, deleteToken });
+  // 7. Presign a PUT URL for the browser to upload ciphertext directly to R2
+  let uploadUrl: string;
+  try {
+    uploadUrl = await getPresignedUploadUrl(
+      storageKey,
+      "application/octet-stream",
+      UPLOAD_URL_EXPIRES_IN,
+    );
+  } catch {
+    // Best-effort cleanup of the row we just inserted — nothing was ever
+    // written to R2, so there's no blob to clean up.
+    await supabase.from("documents").delete().eq("token", token);
+    return NextResponse.json(
+      { error: "Failed to prepare upload" },
+      { status: 500 },
+    );
+  }
+
+  return NextResponse.json({ token, deleteToken, uploadUrl });
 }

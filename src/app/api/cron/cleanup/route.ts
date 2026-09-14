@@ -88,5 +88,44 @@ async function handleCleanup(req: NextRequest) {
     }
   }
 
+  // ── 3. Abandoned uploads: presigned URL issued but never confirmed ──
+  // (client never PUT the ciphertext, or PUT succeeded but /api/upload/confirm
+  // was never called). These rows never became real documents, so they're
+  // deleted outright rather than transitioned to another status. Best-effort
+  // R2 delete first — the object frequently never existed at all.
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const { data: abandonedDocs } = await supabase
+    .from("documents")
+    .select("id, token, storage_key")
+    .eq("status", "pending")
+    .is("confirmed_at", null)
+    .lt("created_at", oneHourAgo)
+    .limit(100);
+
+  if (abandonedDocs) {
+    for (const doc of abandonedDocs as Pick<
+      DocumentRow,
+      "id" | "token" | "storage_key"
+    >[]) {
+      try {
+        await deleteR2Object(doc.storage_key);
+      } catch {
+        // best-effort — the object frequently never existed
+      }
+
+      const { error: deleteError } = await supabase
+        .from("documents")
+        .delete()
+        .eq("id", doc.id);
+
+      if (deleteError) {
+        failed++;
+      } else {
+        purged++;
+        void trackServerEvent("UploadAbandoned");
+      }
+    }
+  }
+
   return NextResponse.json({ purged, failed, timestamp: now });
 }
