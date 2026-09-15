@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { createServerSupabaseClient, DocumentRow } from "@/lib/supabase";
 import { deleteR2Object } from "@/lib/r2";
 import { trackServerEvent } from "@/lib/analytics-server";
@@ -48,8 +49,9 @@ async function handleCleanup(req: NextRequest) {
           .eq("id", doc.id);
         purged++;
         void trackServerEvent("DocumentExpired");
-      } catch {
+      } catch (err) {
         failed++;
+        Sentry.captureException(err, { tags: { job: "cleanup-expired" } });
       }
     }
   }
@@ -82,8 +84,9 @@ async function handleCleanup(req: NextRequest) {
           .eq("id", doc.id);
         purged++;
         void trackServerEvent("DocumentDeleted");
-      } catch {
+      } catch (err) {
         failed++;
+        Sentry.captureException(err, { tags: { job: "cleanup-viewed" } });
       }
     }
   }

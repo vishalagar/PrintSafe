@@ -12,6 +12,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.997.0",
     "@aws-sdk/s3-request-presigner": "^3.997.0",
+    "@sentry/nextjs": "^10.74.0",
     "@supabase/supabase-js": "^2.97.0",
     "@upstash/redis": "^1.36.2",
     "@vercel/analytics": "^1.6.1",
