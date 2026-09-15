@@ -5,7 +5,7 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: "*",
       allow: "/",
-      disallow: ["/d/", "/status/", "/api/"],
+      disallow: ["/d/", "/status/", "/api/", "/admin/"],
     },
     sitemap: "https://printsafe.in/sitemap.xml",
   };
