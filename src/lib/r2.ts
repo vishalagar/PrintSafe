@@ -18,27 +18,6 @@ const r2Client = new S3Client({
 
 const BUCKET = process.env.R2_BUCKET_NAME!;
 
-export async function uploadEncryptedBlob(
-  storageKey: string,
-  buffer: Buffer,
-  mimeType: string,
-): Promise<void> {
-  const command = new PutObjectCommand({
-    Bucket: BUCKET,
-    Key: storageKey,
-    Body: buffer,
-    ContentType: mimeType,
-  });
-
-  try {
-    await r2Client.send(command);
-  } catch (err) {
-    throw new Error(
-      `R2 upload failed: ${err instanceof Error ? err.message : "unknown error"}`,
-    );
-  }
-}
-
 // Presigned PUT URL so the browser can send ciphertext directly to R2,
 // bypassing the Vercel serverless function body-size limit (~4.5 MB).
 // ContentType is fixed as opaque application/octet-stream — the caller's PUT
