@@ -80,7 +80,7 @@ Reference files:
 **`/share` — Link Ready**
 - Full-width read-only link input + copy button
 - 256×256 QR code centred — always visible without scrolling on mobile
-- WhatsApp share button (deep links to `wa.me`) + Web Share API on mobile
+- WhatsApp share button (deep links to `wa.me`) — Web Share API (`navigator.share`) is not implemented, despite being listed here previously; only the WhatsApp deep link and copy-to-clipboard exist
 - Expiry badge (amber) + "Track this document →" link to `/status/[token]`
 
 **`/d/[token]` — Document Viewer**
