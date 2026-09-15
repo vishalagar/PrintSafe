@@ -307,3 +307,45 @@ the presigned-upload code was in place, root-caused via an `OPTIONS`
 preflight returning `"CORS not configured for this bucket"`. User confirmed
 the upload succeeds end-to-end in production after both fixes were applied.
 
+---
+
+## Session: 2026-09-15 (session 11)
+
+### Fix: PDF preview/print showing white/blank pages on iPhone Safari
+
+**Root cause:** `d/[token]/page.tsx` handed pdf.js a `blob:` object URL
+(`{ url: blobUrl }`) for both the react-pdf preview and the canvas-based
+print path (`printPDFViaCanvas`). pdf.js does range-request-style fetches
+against that URL; WebKit's stricter `Headers` validation throws partway
+through on a synthetic `blob:` response, which pdf.js swallows internally,
+leaving every page blank. Chromium tolerates the same call, which is why
+it worked on desktop (Chrome/Brave/laptop Safari not affected) but failed
+on every PDF on iPhone/iPad Safari. Matches pdf.js upstream issue
+[#19205](https://github.com/mozilla/pdf.js/issues/19205).
+
+**Fix:** pass the raw decrypted bytes to pdf.js instead of a blob URL —
+sidesteps the fetch/Headers path entirely.
+- Added `pdfBytes` (`Uint8Array`) state, set alongside `blobUrl` after
+  decryption when `mimeType === 'application/pdf'`.
+- `PDFViewer` now takes `pdfBytes` and passes `{ data: pdfBytes.slice() }`
+  to react-pdf's `<Document file={...}>` (memoized via `useMemo` — react-pdf
+  re-parses whenever the `file` object reference changes).
+- `printPDFViaCanvas` now takes `bytes: Uint8Array` and calls
+  `pdfjsLib.getDocument({ data: bytes.slice() })`.
+- `.slice()` in both call sites avoids pdf.js transferring/detaching the
+  shared `pdfBytes` buffer, keeping `blobUrl`'s independent copy intact for
+  image handling and cleanup (`blobUrl` itself is unchanged, still used for
+  `<img>` display and `URL.revokeObjectURL`).
+
+**Verified:** `npx tsc --noEmit` clean; `npm run lint` shows no new issues
+in the touched file. Reproduced the original bug's *absence in Chromium*
+and confirmed the fix doesn't regress it: drove the full upload → decrypt
+→ preview → print flow against local dev with headless Brave (no browser
+extension available this session) using an 8-page real PDF, reading actual
+canvas/image pixel data (not just "no exception") before and after the
+change — ~15–17% non-white pixels per page both times. **Not yet verified
+on a real iPhone/iPad Safari** — no way to drive Safari from this session;
+user should confirm on-device before considering this closed.
+
+**Files changed:** `src/app/d/[token]/page.tsx` only.
+
