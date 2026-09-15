@@ -4,18 +4,11 @@ import { hashIp } from "@/lib/ip-hash";
 import { createServerSupabaseClient } from "@/lib/supabase";
 import { getPresignedUploadUrl } from "@/lib/r2";
 import { checkRateLimit } from "@/lib/redis";
-
-const ALLOWED_MIMES = [
-  "application/pdf",
-  "image/jpeg",
-  "image/png",
-  "image/heic",
-  "image/heif",
-];
-
-const MAX_FILE_SIZE = 26_214_400; // 25 MB
-
-const ALLOWED_TTLS = [0, 900, 1800, 3600];
+import {
+  ALLOWED_MIMES,
+  MAX_FILE_SIZE,
+  ALLOWED_TTLS,
+} from "@/lib/document-constants";
 
 // Presigned PUT URL expiry — generous enough for a slow connection to finish
 // uploading up to 25 MB before the URL expires.

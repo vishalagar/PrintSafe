@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { capture } from "@/lib/analytics";
 import ThemeToggle from "@/components/ThemeToggle";
+import { formatBytes } from "@/lib/format";
 
 type DocStatus = "pending" | "viewed" | "deleted" | "expired";
 
@@ -37,12 +38,6 @@ function formatCountdown(ms: number): string {
   const min = Math.floor(totalSec / 60);
   const sec = totalSec % 60;
   return `${String(min).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / 1048576).toFixed(1)} MB`;
 }
 
 export default function StatusPage() {
