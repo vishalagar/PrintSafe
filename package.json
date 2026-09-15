@@ -22,7 +22,7 @@
     "heic2any": "^0.0.4",
     "lucide-react": "^0.575.0",
     "nanoid": "^5.1.6",
-    "next": "16.1.6",
+    "next": "^16.3.5",
     "posthog-js": "^1.355.0",
     "qrcode": "^1.5.4",
     "radix-ui": "^1.4.3",
