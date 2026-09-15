@@ -13,6 +13,11 @@ export interface DocumentRow {
   viewed_at: string | null;
   expires_at: string;
   ttl_after_view: number;
+  // ISO timestamp at which a 'viewed' document's blob should be purged
+  // (viewed_at + ttl_after_view seconds), set when status flips to 'viewed'.
+  // Null for TTL=0 documents (deleted immediately instead) and for rows
+  // that haven't been viewed yet. See src/lib/document-lifecycle.ts.
+  delete_after: string | null;
   ip_hash: string | null;
   created_at: string;
   // NULL until /api/upload/confirm verifies the ciphertext actually landed in

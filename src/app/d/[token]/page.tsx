@@ -6,7 +6,12 @@ import { capture, mimeToFileType } from "@/lib/analytics";
 import ThemeToggle from "@/components/ThemeToggle";
 
 type ViewState =
-  "loading" | "decrypting" | "ready" | "already-opened" | "deleted" | "error";
+  | "loading"
+  | "decrypting"
+  | "ready"
+  | "already-opened"
+  | "deleted"
+  | "error";
 
 export default function DocumentViewer() {
   const params = useParams();
@@ -20,6 +25,12 @@ export default function DocumentViewer() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isPrinting, setIsPrinting] = useState(false);
   const initRef = useRef(false);
+  // Mirrors blobUrl so the unmount cleanup below can revoke the latest
+  // object URL. A cleanup closure captures the blobUrl value from the
+  // render that created it (null, since the effect runs once with `[token]`
+  // as its only dep and blobUrl is set later, asynchronously) — a ref reads
+  // the current value instead.
+  const blobUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (initRef.current || !token) return;
@@ -84,6 +95,7 @@ export default function DocumentViewer() {
         setMimeType(displayMime);
         const blob = new Blob([displayBytes], { type: displayMime });
         const url = URL.createObjectURL(blob);
+        blobUrlRef.current = url;
         setBlobUrl(url);
         // pdf.js is handed the raw bytes directly rather than the blob URL —
         // Safari's stricter Headers validation throws when pdf.js does
@@ -104,9 +116,11 @@ export default function DocumentViewer() {
 
     init();
 
-    // Cleanup blob URL on unmount
+    // Cleanup blob URL on unmount — reads the ref, not blobUrl, since this
+    // closure is created once when the effect runs and blobUrl is only set
+    // later inside the async init() above.
     return () => {
-      if (blobUrl) URL.revokeObjectURL(blobUrl);
+      if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
@@ -128,6 +142,7 @@ export default function DocumentViewer() {
             if (prev) URL.revokeObjectURL(prev);
             return null;
           });
+          blobUrlRef.current = null;
           setViewState("deleted");
         }
       } catch {

@@ -7,21 +7,23 @@ export const redis = new Redis({
 
 /**
  * Returns true if the request is allowed, false if the rate limit is exceeded.
- * Uses an INCR counter per IP, with an expiry set only on the first request in the window.
+ * Uses an INCR counter per key, with an expiry set only on the first request
+ * in the window. `key` should already be scoped by the caller (e.g.
+ * `upload:${ip}`, `file:${token}`) — this only adds the shared `rl:` prefix.
  */
 export async function checkRateLimit(
-  ip: string,
+  key: string,
   limit: number,
   windowSeconds: number,
 ): Promise<boolean> {
-  const key = `rl:upload:${ip}`;
+  const rlKey = `rl:${key}`;
 
   try {
-    const count = await redis.incr(key);
+    const count = await redis.incr(rlKey);
 
     // Set expiry only on the first increment so the window starts fresh
     if (count === 1) {
-      await redis.expire(key, windowSeconds);
+      await redis.expire(rlKey, windowSeconds);
     }
 
     return count <= limit;
