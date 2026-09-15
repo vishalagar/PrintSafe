@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useMemo } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { capture, mimeToFileType } from "@/lib/analytics";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -122,7 +123,6 @@ export default function DocumentViewer() {
     return () => {
       if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   // Poll status every 5s while document is open — detects if sender deletes it remotely.
@@ -214,7 +214,7 @@ export default function DocumentViewer() {
           This link is one-time use only. For your protection, the document
           cannot be opened again.
         </p>
-        <a
+        <Link
           href="/"
           style={{
             marginTop: 8,
@@ -230,7 +230,7 @@ export default function DocumentViewer() {
           }}
         >
           Upload a new document
-        </a>
+        </Link>
       </div>
     );
   }
@@ -289,7 +289,7 @@ export default function DocumentViewer() {
         >
           The sender has deleted this document. It is no longer available.
         </p>
-        <a
+        <Link
           href="/"
           style={{
             marginTop: 8,
@@ -305,7 +305,7 @@ export default function DocumentViewer() {
           }}
         >
           Upload a new document
-        </a>
+        </Link>
       </div>
     );
   }
@@ -362,7 +362,7 @@ export default function DocumentViewer() {
         >
           {errorMsg}
         </p>
-        <a
+        <Link
           href="/"
           style={{
             marginTop: 8,
@@ -378,7 +378,7 @@ export default function DocumentViewer() {
           }}
         >
           ← Back to home
-        </a>
+        </Link>
       </div>
     );
   }

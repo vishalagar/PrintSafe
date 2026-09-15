@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Turnstile from "react-turnstile";
 import {
@@ -302,7 +303,7 @@ export default function UploadPage() {
             justifyContent: "space-between",
           }}
         >
-          <a
+          <Link
             href="/"
             style={{
               display: "flex",
@@ -372,7 +373,7 @@ export default function UploadPage() {
                 animation: "pulse-dot 3s ease-in-out infinite",
               }}
             />
-          </a>
+          </Link>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span
               style={{
@@ -944,7 +945,7 @@ export default function UploadPage() {
               marginBottom: 8,
             }}
           >
-            "Share privately. Delete automatically."
+            &ldquo;Share privately. Delete automatically.&rdquo;
           </p>
           <p
             style={{

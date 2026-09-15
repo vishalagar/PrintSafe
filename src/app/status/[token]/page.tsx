@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { capture } from "@/lib/analytics";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -189,7 +190,7 @@ export default function StatusPage() {
         >
           This token does not exist or the document has been fully purged.
         </p>
-        <a
+        <Link
           href="/"
           style={{
             marginTop: 12,
@@ -205,7 +206,7 @@ export default function StatusPage() {
           }}
         >
           ← Back to home
-        </a>
+        </Link>
       </div>
     );
   }
@@ -295,7 +296,7 @@ export default function StatusPage() {
             justifyContent: "space-between",
           }}
         >
-          <a
+          <Link
             href="/"
             style={{
               display: "flex",
@@ -325,7 +326,7 @@ export default function StatusPage() {
                 display: "inline-block",
               }}
             />
-          </a>
+          </Link>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span
               style={{
@@ -578,7 +579,7 @@ export default function StatusPage() {
             >
               ← Back to share
             </a>
-            <a
+            <Link
               href="/"
               style={{
                 flex: 1,
@@ -597,7 +598,7 @@ export default function StatusPage() {
               }}
             >
               Upload another
-            </a>
+            </Link>
           </div>
         </div>
       </div>

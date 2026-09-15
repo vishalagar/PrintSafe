@@ -28,21 +28,6 @@ export interface DocumentRow {
   confirmed_at: string | null;
 }
 
-type Database = {
-  public: {
-    Tables: {
-      documents: {
-        Row: DocumentRow;
-        Insert: Omit<DocumentRow, "id" | "created_at"> & {
-          id?: string;
-          created_at?: string;
-        };
-        Update: Partial<Omit<DocumentRow, "id">>;
-      };
-    };
-  };
-};
-
 // Server-side only — never import in 'use client' files
 // Uses untyped client to avoid Supabase generic inference issues;
 // callers cast results to DocumentRow manually.

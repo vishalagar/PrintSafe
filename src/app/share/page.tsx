@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ThemeToggle from "@/components/ThemeToggle";
 
@@ -127,7 +128,7 @@ export default function SharePage() {
             justifyContent: "space-between",
           }}
         >
-          <a
+          <Link
             href="/"
             style={{
               display: "flex",
@@ -158,7 +159,7 @@ export default function SharePage() {
                 animation: "pulse-dot 3s ease-in-out infinite",
               }}
             />
-          </a>
+          </Link>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span
               style={{
@@ -554,7 +555,7 @@ export default function SharePage() {
               animation: "fade-up 0.5s 0.24s ease both",
             }}
           >
-            <a
+            <Link
               href="/"
               style={{
                 fontSize: 13,
@@ -564,7 +565,7 @@ export default function SharePage() {
               }}
             >
               ← Upload another document
-            </a>
+            </Link>
           </div>
         </div>
       </div>
