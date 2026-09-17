@@ -115,9 +115,16 @@ rules are written up in **`tasks/video-production.md`**.
   environment) — see `docs/setup.md`. Already in local `.env.local`.
 - Still outstanding from session 11: confirm the Safari PDF fix on a real
   iPhone/iPad — only verified via headless Brave so far.
-- Confirm the landing-page explainer plays inline on a real iPhone Safari
-  (verified in desktop Chrome only; `playsInline` is set but untested on
-  the device).
+- ~~Confirm the landing-page explainer plays inline on a real iPhone
+  Safari~~ ✅ verified session 14 on the actual device — plays in place,
+  no forced fullscreen.
+- **Preview deploys cannot upload**: the R2 bucket CORS policy allows
+  `http://localhost:3000` and `https://printsafe.in` but not
+  `*.vercel.app`, so the browser's preflight to the presigned PUT URL is
+  refused (403) and the client reports "Upload to storage failed. Please
+  check your connection." Add `https://*.vercel.app` to AllowedOrigins in
+  the Cloudflare R2 dashboard. Not a regression — preview uploads have
+  never worked. Production (`printsafe.in`) is unaffected.
 
 ### Phase 3
 
