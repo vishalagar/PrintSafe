@@ -11,6 +11,7 @@ import {
   ttlToLabel,
 } from "@/lib/analytics";
 import ThemeToggle from "@/components/ThemeToggle";
+import DemoVideo from "@/components/DemoVideo";
 import { formatBytes } from "@/lib/format";
 import {
   MAX_FILE_SIZE,
@@ -902,6 +903,9 @@ export default function UploadPage() {
           </div>
         </div>
       </div>
+
+      {/* ── HOW IT WORKS (explainer video) ── */}
+      <DemoVideo />
 
       {/* ── FOOTER ── */}
       <footer

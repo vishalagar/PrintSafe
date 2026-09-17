@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Marketing video source projects (large binaries, re-renderable via /brag)
+brag-output/
+brag-output-explainer/
+brag-output-technical/
+brag-output-vertical/

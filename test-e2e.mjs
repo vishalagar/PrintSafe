@@ -27,7 +27,11 @@ function base64urlDecode(str) {
   const padded = str.replace(/-/g, '+').replace(/_/g, '/')
   const rem = padded.length % 4
   const padded2 = rem === 0 ? padded : padded + '='.repeat(4 - rem)
-  return Buffer.from(padded2, 'base64').buffer
+  // Node allocates small Buffers out of a shared pool, so `.buffer` is the
+  // whole pool (up to 8 KB), not just these bytes — slice out our own view
+  // or importKey sees a 32-byte key as 8192 bytes ("Invalid key length").
+  const buf = Buffer.from(padded2, 'base64')
+  return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)
 }
 
 const subtle = globalThis.crypto.subtle
