@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useState, useRef, useMemo } from "react";
+import { useEffect, useState, useRef } from "react";
+import {
+  loadPdfDocument,
+  startPageRender,
+  isRenderCancelled,
+  getPageCssWidth,
+} from "@/lib/pdf-doc";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { capture, mimeToFileType } from "@/lib/analytics";
@@ -430,13 +436,7 @@ export default function DocumentViewer() {
   async function printPDFViaCanvas(bytes: Uint8Array) {
     setIsPrinting(true);
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const pdfjsLib: any = await import("pdfjs-dist");
-      pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
-      // Pass raw bytes rather than a blob: URL — Safari throws inside pdf.js's
-      // range-request Headers handling when fetching a blob: URL, which
-      // otherwise silently leaves every page blank.
-      const pdf = await pdfjsLib.getDocument({ data: bytes.slice() }).promise;
+      const pdf = await loadPdfDocument(bytes);
       const dataUrls: string[] = [];
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
@@ -659,45 +659,99 @@ export default function DocumentViewer() {
   );
 }
 
-// Lazy-loaded PDF viewer — avoids SSR issues with react-pdf
+// PDF viewer — parses the document ONCE and keeps the pdf.js proxy, rendering
+// each page from it on demand. It must not hand `pdfBytes` (or any array it
+// needs again) to pdf.js: pdf.js transfers ownership and detaches the buffer,
+// which is what previously left every page after the first blank. See
+// src/lib/pdf-doc.ts.
 function PDFViewer({ pdfBytes }: { pdfBytes: Uint8Array }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [ReactPDF, setReactPDF] = useState<any>(null);
-  const [numPages, setNumPages] = useState(1);
+  const docRef = useRef<any>(null);
+  const [numPages, setNumPages] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
-  // react-pdf re-parses the document whenever the `file` prop reference
-  // changes, so memoize it against the (stable) pdfBytes reference. A fresh
-  // copy avoids pdf.js transferring/detaching the shared buffer.
-  const file = useMemo(() => ({ data: pdfBytes.slice() }), [pdfBytes]);
+  const [error, setError] = useState<string | null>(null);
 
+  // Parse once per document.
   useEffect(() => {
-    import("react-pdf").then((mod) => {
-      // Serve worker locally from public/ — CDN not reliable for pdfjs v5
-      mod.pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
-      setReactPDF(mod);
-    });
-  }, []);
+    let cancelled = false;
+    loadPdfDocument(pdfBytes)
+      .then((doc) => {
+        if (cancelled) return;
+        docRef.current = doc;
+        setNumPages(doc.numPages);
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        console.error("PDF parse failed", e);
+        setError("This document could not be displayed.");
+      });
+    return () => {
+      cancelled = true;
+      docRef.current = null;
+    };
+  }, [pdfBytes]);
 
-  if (!ReactPDF) {
+  // Render the visible page whenever it (or the parsed document) changes.
+  // pdf.js rejects concurrent renders on one canvas, so the previous task is
+  // cancelled before a new one starts.
+  useEffect(() => {
+    const doc = docRef.current;
+    const canvas = canvasRef.current;
+    if (!doc || !canvas || numPages === 0) return;
+
+    let cancelled = false;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let task: any = null;
+
+    (async () => {
+      try {
+        const cssWidth = Math.min(window.innerWidth - 48, 860);
+        const unscaledWidth = await getPageCssWidth(doc, currentPage);
+        if (cancelled) return;
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        task = await startPageRender(
+          doc,
+          currentPage,
+          canvas,
+          (cssWidth / unscaledWidth) * dpr,
+        );
+        if (cancelled) {
+          task.cancel();
+          return;
+        }
+        await task.promise;
+        if (cancelled) return;
+        canvas.style.width = `${cssWidth}px`;
+        canvas.style.height = "auto";
+      } catch (e) {
+        if (cancelled || isRenderCancelled(e)) return;
+        console.error("PDF page render failed", e);
+        setError("This page could not be rendered.");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (task) task.cancel();
+    };
+  }, [currentPage, numPages]);
+
+  if (error) {
     return (
-      <div style={{ display: "flex", justifyContent: "center", padding: 48 }}>
-        <div
-          style={{
-            width: 32,
-            height: 32,
-            border: "3px solid var(--spinner-track)",
-            borderTopColor: "var(--ink)",
-            borderRadius: "50%",
-            animation: "spin 0.7s linear infinite",
-          }}
-        />
+      <div
+        style={{
+          padding: 32,
+          textAlign: "center",
+          color: "var(--red)",
+          fontWeight: 600,
+          fontSize: 14,
+        }}
+      >
+        {error}
       </div>
     );
   }
-
-  const { Document, Page } = ReactPDF;
-  const pageWidth =
-    typeof window !== "undefined" ? Math.min(window.innerWidth - 48, 860) : 860;
 
   return (
     <div
@@ -708,35 +762,24 @@ function PDFViewer({ pdfBytes }: { pdfBytes: Uint8Array }) {
         gap: 16,
       }}
     >
-      <Document
-        file={file}
-        onLoadSuccess={({ numPages: n }: { numPages: number }) =>
-          setNumPages(n)
-        }
-        loading={
+      {numPages === 0 && (
+        <div style={{ display: "flex", justifyContent: "center", padding: 48 }}>
           <div
-            style={{ display: "flex", justifyContent: "center", padding: 48 }}
-          >
-            <div
-              style={{
-                width: 32,
-                height: 32,
-                border: "3px solid var(--spinner-track)",
-                borderTopColor: "var(--ink)",
-                borderRadius: "50%",
-                animation: "spin 0.7s linear infinite",
-              }}
-            />
-          </div>
-        }
-      >
-        <Page
-          pageNumber={currentPage}
-          width={pageWidth}
-          renderTextLayer={false}
-          renderAnnotationLayer={false}
-        />
-      </Document>
+            style={{
+              width: 32,
+              height: 32,
+              border: "3px solid var(--spinner-track)",
+              borderTopColor: "var(--ink)",
+              borderRadius: "50%",
+              animation: "spin 0.7s linear infinite",
+            }}
+          />
+        </div>
+      )}
+      <canvas
+        ref={canvasRef}
+        style={{ display: numPages === 0 ? "none" : "block", maxWidth: "100%" }}
+      />
 
       {numPages > 1 && (
         <div
