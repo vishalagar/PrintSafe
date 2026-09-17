@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient, DocumentRow } from "@/lib/supabase";
+import { lazyDeleteIfPastDeadline } from "@/lib/document-lifecycle";
 
 type RouteContext = {
   params: Promise<{ token: string }>;
@@ -18,7 +19,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
   const { data: docData, error: fetchError } = await supabase
     .from("documents")
     .select(
-      "status, file_name, file_size, mime_type, created_at, viewed_at, expires_at, ttl_after_view, confirmed_at",
+      "token, storage_key, status, file_name, file_size, mime_type, created_at, viewed_at, expires_at, ttl_after_view, confirmed_at, delete_after",
     )
     .eq("token", token)
     .single();
@@ -29,6 +30,8 @@ export async function GET(req: NextRequest, context: RouteContext) {
 
   const doc = docData as Pick<
     DocumentRow,
+    | "token"
+    | "storage_key"
     | "status"
     | "file_name"
     | "file_size"
@@ -38,6 +41,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
     | "expires_at"
     | "ttl_after_view"
     | "confirmed_at"
+    | "delete_after"
   >;
 
   // Unconfirmed uploads (presigned PUT never completed) don't exist yet as far as any client is concerned
@@ -45,8 +49,13 @@ export async function GET(req: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  // TTL deadline already passed but cron hasn't run yet — report (and lazily
+  // trigger) the deletion now instead of showing a stale "Viewed" status
+  // with a countdown stuck at 00:00.
+  const isExpiredByTtl = lazyDeleteIfPastDeadline(supabase, doc);
+
   return NextResponse.json({
-    status: doc.status,
+    status: isExpiredByTtl ? "deleted" : doc.status,
     fileName: doc.file_name,
     fileSize: doc.file_size,
     mimeType: doc.mime_type,

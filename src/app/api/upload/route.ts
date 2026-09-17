@@ -1,21 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { nanoid } from "nanoid";
-import { createHash } from "crypto";
+import { hashIp } from "@/lib/ip-hash";
 import { createServerSupabaseClient } from "@/lib/supabase";
 import { getPresignedUploadUrl } from "@/lib/r2";
 import { checkRateLimit } from "@/lib/redis";
-
-const ALLOWED_MIMES = [
-  "application/pdf",
-  "image/jpeg",
-  "image/png",
-  "image/heic",
-  "image/heif",
-];
-
-const MAX_FILE_SIZE = 26_214_400; // 25 MB
-
-const ALLOWED_TTLS = [0, 900, 1800, 3600];
+import {
+  ALLOWED_MIMES,
+  MAX_FILE_SIZE,
+  ALLOWED_TTLS,
+} from "@/lib/document-constants";
 
 // Presigned PUT URL expiry — generous enough for a slow connection to finish
 // uploading up to 25 MB before the URL expires.
@@ -32,7 +25,10 @@ export async function POST(req: NextRequest) {
 
   let allowed: boolean;
   try {
-    allowed = await checkRateLimit(ip, 10, 3600);
+    // 30/hour/IP — generous enough that Jio/Airtel CGNAT (many phones behind
+    // one public IP) doesn't collide with real users. Turnstile CAPTCHA is
+    // the primary bot defense; this just puts a ceiling on abuse.
+    allowed = await checkRateLimit(`upload:${ip}`, 30, 3600);
   } catch {
     allowed = false; // fail closed
   }
@@ -107,7 +103,7 @@ export async function POST(req: NextRequest) {
   const deleteToken = nanoid(21);
 
   // 5. Hash IP — store only the hash, never the raw IP
-  const ipHash = createHash("sha256").update(ip).digest("hex");
+  const ipHash = hashIp(ip);
 
   // 6. Insert the document row up front, in an unconfirmed state
   // (confirmed_at IS NULL). No R2 object exists yet — the client hasn't

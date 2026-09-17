@@ -1,18 +1,40 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useSyncExternalStore } from "react";
+
+// Reads the theme the blocking script in layout.tsx already stamped onto
+// <html> before first paint. Called lazily (useState initializer) rather
+// than in an effect — an effect would still be synchronous-in-effect from
+// React's perspective and would also mean a flash of the wrong icon
+// between mount and the effect running. document.documentElement is safe
+// to read outside an effect because this component isn't rendered during
+// SSR (server always sees `mounted === false` below and returns null).
+function readInitialIsDark(): boolean {
+  if (typeof document === "undefined") return false;
+  return document.documentElement.dataset.theme === "dark";
+}
+
+// Standard client-only-render pattern: getServerSnapshot returns false so
+// SSR (and the first client render, to match) render nothing; the second
+// client render then sees true. No subscription needed since this value
+// never changes after mount, so `subscribe` is a no-op that never fires.
+function subscribe() {
+  return () => {};
+}
+function getSnapshot() {
+  return true;
+}
+function getServerSnapshot() {
+  return false;
+}
+function useMounted() {
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+}
 
 export default function ThemeToggle() {
-  const [isDark, setIsDark] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  const [isDark, setIsDark] = useState(readInitialIsDark);
   const [animating, setAnimating] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-    const el = document.documentElement;
-    const dark = el.dataset.theme === "dark";
-    setIsDark(dark);
-  }, []);
+  const mounted = useMounted();
 
   function toggle() {
     if (animating) return;

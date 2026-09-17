@@ -1,7 +1,16 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { createServerSupabaseClient, DocumentRow } from "@/lib/supabase";
 import { deleteR2Object } from "@/lib/r2";
+import { checkRateLimit } from "@/lib/redis";
+import { lazyDeleteIfPastDeadline } from "@/lib/document-lifecycle";
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
+
+// Per-token cap on ciphertext fetches. A legitimate viewer fetches this once
+// (occasionally twice, on a retry); this only exists to stop someone who
+// holds a still-'viewed'-and-unexpired link from re-downloading the blob in
+// a loop and running up R2/egress costs before the TTL deletes it.
+const FILE_FETCH_LIMIT = 20;
+const FILE_FETCH_WINDOW_SECONDS = 300;
 
 // Separate R2 client instance for streaming — same config as r2.ts
 const r2 = new S3Client({
@@ -27,11 +36,27 @@ export async function GET(req: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "Missing token" }, { status: 400 });
   }
 
+  let allowed: boolean;
+  try {
+    allowed = await checkRateLimit(
+      `file:${token}`,
+      FILE_FETCH_LIMIT,
+      FILE_FETCH_WINDOW_SECONDS,
+    );
+  } catch {
+    allowed = false; // fail closed
+  }
+  if (!allowed) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
   const supabase = createServerSupabaseClient();
 
   const { data: docData, error } = await supabase
     .from("documents")
-    .select("storage_key, status, ttl_after_view, confirmed_at")
+    .select(
+      "token, storage_key, status, ttl_after_view, confirmed_at, delete_after",
+    )
     .eq("token", token)
     .single();
 
@@ -41,7 +66,12 @@ export async function GET(req: NextRequest, context: RouteContext) {
 
   const doc = docData as Pick<
     DocumentRow,
-    "storage_key" | "status" | "ttl_after_view" | "confirmed_at"
+    | "token"
+    | "storage_key"
+    | "status"
+    | "ttl_after_view"
+    | "confirmed_at"
+    | "delete_after"
   >;
 
   // Unconfirmed upload — no verified object in R2 yet (or the upload was
@@ -52,6 +82,13 @@ export async function GET(req: NextRequest, context: RouteContext) {
   }
 
   if (doc.status === "deleted" || doc.status === "expired") {
+    return NextResponse.json({ error: "gone" }, { status: 410 });
+  }
+
+  // TTL deadline already passed (e.g. viewer left the tab open past the
+  // "30 min after first view" window) but the daily cron hasn't run yet —
+  // don't keep serving ciphertext for a document that should be gone.
+  if (lazyDeleteIfPastDeadline(supabase, doc)) {
     return NextResponse.json({ error: "gone" }, { status: 410 });
   }
 

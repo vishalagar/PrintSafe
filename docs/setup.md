@@ -31,6 +31,11 @@ File: `.env.local` (project root) — **never commit. Add to `.gitignore`.**
 | `CRON_SECRET` | Random 32-char string — protects the cron endpoint |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Cloudflare → Turnstile → your widget → Site Key (public, browser-safe) |
 | `TURNSTILE_SECRET_KEY` | Cloudflare → Turnstile → your widget → Secret Key ⚠ private |
+| `ADMIN_SECRET` | Random 32-char string — password for `/admin/stats` (generate: `openssl rand -hex 24`) ⚠ private |
+| `IP_HASH_SECRET` | HMAC key for `ip_hash` so it isn't reversible via rainbow table (generate: `openssl rand -hex 32`) ⚠ private. Falls back to unsalted SHA-256 if unset — set this in every environment |
+| `NEXT_PUBLIC_SENTRY_DSN` | Sentry → Project Settings → Client Keys (DSN). Public-safe. Leave unset to keep error tracking disabled |
+| `SENTRY_ORG` / `SENTRY_PROJECT` | Sentry → org/project slugs (needed only for source-map upload on deploy) |
+| `SENTRY_AUTH_TOKEN` | Sentry → Settings → Auth Tokens (needed only for source-map upload on deploy) ⚠ private |
 
 > **Rule:** Any `NEXT_PUBLIC_` variable is visible in the browser. Never prefix R2 keys, Supabase service role, or Upstash token with `NEXT_PUBLIC_`.
 

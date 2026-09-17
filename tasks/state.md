@@ -14,78 +14,119 @@
 ---
 
 ## Last Session Summary
-**Date:** 2026-09-14 (session 10)
+**Date:** 2026-09-17 (session 14)
 
-### Fix: uploads 4.5–25 MB silently failing (Vercel body size cap)
+### Explainer video embedded on the landing page
 
-**Root cause:** `/api/upload` received the full encrypted file body directly
-in a POST handled by a Node.js Vercel Serverless Function. Vercel caps
-serverless function request bodies at ~4.5 MB, but the app allows files up to
-25 MB (`MAX_FILE_SIZE`). Vercel returned a 413 before the route handler even
-ran; the client's `.catch(() => ({}))` swallowed the non-JSON error body, so
-the user just saw a generic "Upload failed."
+The 52 s voiced explainer from session 13 now ships on `/`, between the
+upload card and the footer, as a "Can your developers see my documents?"
+section.
 
-**Fix — presigned R2 PUT upload**, matching Vercel's own guidance for large
-uploads:
-1. Client → `POST /api/upload` with metadata only in headers (no body). Rate
-   limit + CAPTCHA gate this exactly as before. Server inserts a `documents`
-   row with `confirmed_at = NULL`, then returns `{ token, deleteToken,
-   uploadUrl }` — `uploadUrl` is a presigned R2 PUT URL (5 min expiry).
-2. Client → `PUT`s the ciphertext directly to `uploadUrl` (never touches the
-   Vercel function body).
-3. Client → `POST /api/upload/confirm` `{ token }` — server `HeadObjectCommand`s
-   R2 to verify the object landed and its size roughly matches what was
-   declared, then sets `confirmed_at`.
-4. If the client never confirms, the row isn't a real document:
-   `/api/doc/:token` and `/api/file/:token` now treat `status='pending' AND
-   confirmed_at IS NULL` as 404 (not found), and the cron cleanup job
-   (`/api/cron/cleanup`) purges rows unconfirmed for over 1 hour, best-effort
-   deleting the R2 object too.
+- Assets copied to `public/demo/` — `how-it-works.mp4` (2.6 MB, 1080p30,
+  AAC) and `how-it-works-poster.jpg` (101 KB).
+- New component `src/components/DemoVideo.tsx`; `src/app/page.tsx` only
+  gained the import and one `<DemoVideo />` tag.
+- **Never autoplays** — the clip is narrated, so it stays on the poster
+  behind a yellow play button until clicked. `preload="none"` keeps the
+  2.6 MB off first paint; only the poster loads.
+- `playsInline` so iOS Safari plays in place instead of going fullscreen.
+- Controls are revealed *before* `play()` is awaited, so a rejected play
+  (autoplay policy, stalled network) leaves native controls to retry with
+  rather than a dead poster.
+- PostHog events: `DemoVideoPlayed`, `DemoVideoPlayFailed`,
+  `DemoVideoCompleted`.
+- Verified: `tsc --noEmit` clean, lint clean (4 pre-existing `<img>`
+  warnings only), `npm run build` passes, playback confirmed in Chrome at
+  desktop and narrow widths with no horizontal scroll.
 
-**Files changed:**
-- `src/lib/r2.ts` — added `getPresignedUploadUrl()`, `headR2Object()`
-- `src/app/api/upload/route.ts` — rewritten: no body read, issues presigned URL
-- `src/app/api/upload/confirm/route.ts` — **new** route
-- `src/app/api/doc/[token]/route.ts`, `src/app/api/file/[token]/route.ts` — gate on `confirmed_at`
-- `src/app/api/cron/cleanup/route.ts` — third cleanup pass for abandoned uploads
-- `src/lib/supabase.ts` — `DocumentRow.confirmed_at`
-- `src/app/page.tsx` — `handleUpload()` now does presign → PUT → confirm
-- `docs/security.md`, `docs/schema.md` — updated per rule #8
+### Full test pass — `delete_after` migration applied, everything green
 
-**Migration:** `ALTER TABLE documents ADD COLUMN confirmed_at TIMESTAMPTZ;` —
-✅ run in Supabase (production).
+User ran the `delete_after` migration in the Supabase SQL editor. Verified
+end to end against real R2 / Supabase / Redis:
 
-**Also this session:**
-- Extended the same `confirmed_at` gate to `/api/status/[token]/route.ts`
-  (previously only `/api/doc` and `/api/file` hid unconfirmed uploads —
-  `/api/status` was leaking `pending` status for rows with no blob yet).
-- **R2 CORS was missing** — the presigned-PUT flow requires the browser to
-  send a cross-origin `PUT` straight to R2, which needs a bucket CORS policy;
-  it never needed one before (server SDK calls aren't subject to CORS). First
-  real upload attempt failed with `curl` succeeding but the browser failing —
-  confirmed via `OPTIONS` preflight returning `"CORS not configured for this
-  bucket"`. Fixed by adding a CORS policy in the Cloudflare dashboard (R2 →
-  print-safe-documents → Settings) allowing `PUT` from `https://www.printsafe.in`,
-  `https://printsafe.in`, and `http://localhost:3000`. The app's own R2 API
-  token doesn't have bucket-admin scope, so this can't be set from the app's
-  env credentials — dashboard (or a broader-scoped token) is required.
-- Merged `dev` → `main` and deployed. **Note:** `main` has a GitHub ruleset
-  requiring linear history (no merge commits) — used `git merge --squash`
-  instead of a normal merge. Live on `main` @ `0460dba`, Vercel deployment
-  `dpl_2f52nUa82GzzaQ2HhqJn1myauNsv`, READY, production.
+- **`test-e2e.mjs` — all 3 sizes pass** (100 B, 3 KB, 20 KB): encrypt →
+  presigned PUT to R2 → confirm → metadata → file proxy → decrypt → 410 on
+  second access → delete.
+- **Fixed a bug in the test harness itself** (`test-e2e.mjs:30`). It
+  returned `Buffer.from(str,'base64').buffer`; Node allocates small Buffers
+  out of a shared pool, so `.buffer` was the whole ~8 KB pool rather than
+  the 32-byte key — `importKey` rejected it with "Invalid key length". Now
+  slices `byteOffset..byteOffset+byteLength`. **App code was never wrong** —
+  `src/lib/crypto.ts` allocates a fresh `Uint8Array`, so its `.buffer` is
+  exactly sized. This is why the test had never passed before.
+- **Browser flow**: upload PDF → share page (QR + `#key` fragment) →
+  viewer decrypts and renders with watermark + "deleted 30 min after you
+  close this tab" banner → status page timeline.
+- **Migration confirmed working**: after view, `delete_after` = `viewed_at`
+  + `ttl_after_view` exactly. Backdating it made `/api/status` flip
+  `viewed` → `deleted` on the next hit, which is the session-12 lazy-delete
+  fix doing its job.
+- No console errors anywhere in the flow.
 
-**Verified:** `npx tsc --noEmit` clean, `npm run build` succeeds. The original
-Vercel-413 failure was diagnosed from an 8 MB PNG that failed on production
-before this fix (not separately reproduced locally, since the body limit is
-Vercel-platform-specific and doesn't apply to `next dev`). The CORS failure
-*was* reproduced live via Chrome browser automation against local dev after
-the presigned-upload code was in place, root-caused via an `OPTIONS`
-preflight returning `"CORS not configured for this bucket"`. User confirmed
-the upload succeeds end-to-end in production after both fixes were applied.
+Note: there is no `deleted_at` column in the schema, so the status page
+timeline renders "Deleted —" with no timestamp. Cosmetic, by design.
+
+> Session 13 (five marketing video cuts) summary follows.
+
+### Marketing videos — five cuts built with /brag + Hyperframes (no app code changed)
+
+User asked what `github.com/latent-spaces/brag` was, then had it used on
+PrintSafe. **No `src/` code was touched this session** — this was all
+marketing asset production plus one new doc.
+
+Built five videos, each an HTML/GSAP composition screenshotted frame-by-frame
+in headless Chrome and encoded with FFmpeg. All local, all free, fully
+re-renderable:
+
+| Output | Format | Len |
+|--------|--------|-----|
+| `brag-output/brag.mp4` — comedic launch cut | 1920×1080 | 21s |
+| `brag-output-vertical/` — social cut | 1080×1920 | 21s |
+| `brag-output-technical/` — architecture film (dark theme) | 1920×1080 | 20.5s |
+| `brag-output-explainer/brag-explainer.mp4` — tech explainer | 1920×1080 | 31s |
+| `brag-output-explainer/brag-explainer-voiced.mp4` — narrated | 1920×1080 | 52s |
+
+The explainer answers "can your developers see my documents?" using the real
+architecture from `docs/security.md` — client-side AES-256-GCM, the key in the
+URL fragment, ciphertext under opaque UUIDs, and a mocked `documents` row whose
+`key` field reads "no such column". All tokens/keys/hex shown are fake.
+
+Narration uses Kokoro TTS locally (voice `af_heart`), which needed a one-time
+isolated venv at `~/.cache/hyperframes-tts` — the `youtube` conda env was left
+untouched. The 310 MB model stalls through the CLI and was fetched directly;
+it is cached now.
+
+Full pipeline, environment gotchas (FFmpeg only exists in the `youtube` conda
+env; render with `--low-memory-mode --workers 1` on 8 GB RAM), and lint/contrast
+rules are written up in **`tasks/video-production.md`**.
+
+> Session 12 summary (codebase review + fixes) moved to `tasks/history.md`.
 
 ---
 
-## What's Next (Phase 3)
+## What's Next
+
+### Before next deploy (blocking)
+- ~~Run the `delete_after` migration in Supabase SQL editor~~ ✅ done
+  session 14, verified writing correctly.
+- ~~Run `test-e2e.mjs` against a real dev server at least once~~ ✅ done
+  session 14, all 3 sizes pass (harness bug fixed to get there).
+- Set `IP_HASH_SECRET` in Vercel env vars (and any other non-local
+  environment) — see `docs/setup.md`. Already in local `.env.local`.
+- Still outstanding from session 11: confirm the Safari PDF fix on a real
+  iPhone/iPad — only verified via headless Brave so far.
+- ~~Confirm the landing-page explainer plays inline on a real iPhone
+  Safari~~ ✅ verified session 14 on the actual device — plays in place,
+  no forced fullscreen.
+- **Preview deploys cannot upload**: the R2 bucket CORS policy allows
+  `http://localhost:3000` and `https://printsafe.in` but not
+  `*.vercel.app`, so the browser's preflight to the presigned PUT URL is
+  refused (403) and the client reports "Upload to storage failed. Please
+  check your connection." Add `https://*.vercel.app` to AllowedOrigins in
+  the Cloudflare R2 dashboard. Not a regression — preview uploads have
+  never worked. Production (`printsafe.in`) is unaffected.
+
+### Phase 3
 
 Phase 2 is fully complete. Next up:
 - Build **Progressive Web App (PWA)** capability with `manifest.json` and `service-worker.js`.

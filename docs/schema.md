@@ -46,6 +46,33 @@ via `idx_status`) first, so a full index isn't warranted at current scale.
 
 > RLS is ON — all Phase 1 API access uses the `service_role` key in server-side routes only. The anon key never touches this table directly.
 
+### Manual migration — delete_after column (session 12) — run before deploying
+
+Fixes two bugs: (1) `ttl_after_view` was never actually enforced outside the
+daily cron, so a "15 min" document stayed downloadable via `/api/file` and
+showed "Viewed" forever on `/status` once its countdown hit zero; (2) the
+cron's viewed-docs pass fetched the first 100 `status='viewed'` rows with no
+filter and checked the deadline in JS, so once there were >100 live viewed
+docs, overdue ones could be pushed off page 1 and never purged.
+
+```sql
+ALTER TABLE documents ADD COLUMN delete_after TIMESTAMPTZ;
+CREATE INDEX idx_delete_after ON documents(delete_after);
+
+-- Backfill existing 'viewed' rows so the cron's fast-path query (which
+-- filters delete_after directly in SQL) picks them up too.
+UPDATE documents
+SET delete_after = viewed_at + (ttl_after_view || ' seconds')::interval
+WHERE status = 'viewed' AND viewed_at IS NOT NULL AND delete_after IS NULL;
+```
+
+`delete_after` is set alongside `viewed_at` when a document's status flips
+to `'viewed'` (`/api/doc/:token`), null for TTL=0 documents (deleted
+immediately instead — see section G in `docs/security.md`), and read by
+`/api/file/:token` and `/api/status/:token` to lazily delete a document the
+instant its deadline passes, rather than waiting for the next cron run. See
+`src/lib/document-lifecycle.ts`.
+
 ## Status Lifecycle
 
 ```
@@ -57,14 +84,17 @@ pending → viewed → deleted
 |--------|---------|
 | `pending` | Uploaded, not yet opened |
 | `viewed` | Opened — blob deleted after `ttl_after_view` seconds |
-| `printing` | Shopkeeper opened in commercial mode (Phase 3) |
 | `deleted` | Blob permanently purged from R2 |
 | `expired` | TTL exceeded without being viewed — cron triggers deletion |
+
+> A `printing` status (shopkeeper opened, commercial mode) was planned for
+> Phase 3 but isn't in the `status` CHECK constraint yet — don't reference
+> it until the migration that adds it lands.
 
 ## Key Notes
 
 - `delete_token` — returned to uploader at upload time, stored in browser `localStorage`. Enables manual delete without login.
 - `iv` — AES-GCM initialisation vector stored server-side (safe — useless without the key, which never reaches server).
-- `ip_hash` — hashed viewer IP for audit, not raw PII.
+- `ip_hash` — HMAC-SHA256 of viewer IP (`IP_HASH_SECRET`) for audit, not raw PII. See `docs/security.md` section E.
 - `ttl_after_view` default: 1800 seconds (30 min). Options: 0 (view-once), 900 (15min), 1800 (30min), 3600 (1hr).
 - `confirmed_at` — NULL until `/api/upload/confirm` verifies the presigned R2 PUT actually landed. A `'pending'` row with `confirmed_at IS NULL` is not a viewable document; `/api/doc/:token` and `/api/file/:token` 404 on it, and cron deletes it outright if it stays unconfirmed past 1 hour.

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient, DocumentRow } from "@/lib/supabase";
 import { deleteR2Object } from "@/lib/r2";
+import { computeDeleteAfter } from "@/lib/document-lifecycle";
 
 type RouteContext = {
   params: Promise<{ token: string }>;
@@ -52,7 +53,11 @@ export async function GET(req: NextRequest, context: RouteContext) {
   if (doc.status === "pending") {
     const { error: updateError } = await supabase
       .from("documents")
-      .update({ status: "viewed", viewed_at: new Date().toISOString() })
+      .update({
+        status: "viewed",
+        viewed_at: new Date().toISOString(),
+        delete_after: computeDeleteAfter(doc.ttl_after_view),
+      })
       .eq("token", token)
       .eq("status", "pending"); // guard against concurrent requests
 

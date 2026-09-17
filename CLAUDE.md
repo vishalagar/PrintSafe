@@ -68,6 +68,7 @@ supabase gen types typescript --local > src/lib/database.types.ts
 → Design system & UI screens: [`docs/design.md`](docs/design.md)
 → Locked decisions & cost budget: [`docs/decisions.md`](docs/decisions.md)
 → Security patterns & known gaps: [`docs/security.md`](docs/security.md)
+→ Marketing video pipeline (HTML→MP4, local & free): [`tasks/video-production.md`](tasks/video-production.md)
 
 ---
 
@@ -122,3 +123,13 @@ pending → viewed → deleted
 - **File Length Rule** — This file stays under 200 lines. Details live in `docs/`.
 
 → Full workflow & task rules: [`docs/workflow.md`](docs/workflow.md)
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

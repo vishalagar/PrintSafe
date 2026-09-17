@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Vendored/generated — not hand-written, don't lint it.
+    "public/**",
   ]),
 ]);
 

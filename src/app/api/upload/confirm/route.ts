@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient, DocumentRow } from "@/lib/supabase";
-import { headR2Object } from "@/lib/r2";
+import { headR2Object, deleteR2Object } from "@/lib/r2";
 
 // AES-GCM (WebCrypto, 128-bit tag) appends exactly 16 bytes of auth tag to
 // the plaintext — see src/lib/crypto.ts encryptFile(). The declared
@@ -27,7 +27,10 @@ export async function POST(req: NextRequest) {
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Invalid request body" },
+      { status: 400 },
+    );
   }
 
   const token =
@@ -88,6 +91,18 @@ export async function POST(req: NextRequest) {
   const expectedSize = doc.file_size + GCM_TAG_BYTES;
   const sizeDiff = Math.abs(head.contentLength - expectedSize);
   if (sizeDiff > SIZE_TOLERANCE_BYTES) {
+    // Don't leave a mismatched object sitting in R2 for up to an hour
+    // waiting on the abandoned-upload cron pass — delete it now. Best
+    // effort: the row itself stays 'pending'/unconfirmed either way, so a
+    // failed delete here just means cron cleans it up later as usual.
+    try {
+      await deleteR2Object(doc.storage_key);
+    } catch (err) {
+      console.error(
+        "[upload/confirm] cleanup of mismatched-size object failed:",
+        err instanceof Error ? err.message : err,
+      );
+    }
     return NextResponse.json(
       { error: "Uploaded file size does not match — please retry." },
       { status: 400 },

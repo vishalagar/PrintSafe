@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Turnstile from "react-turnstile";
 import {
@@ -10,38 +11,17 @@ import {
   ttlToLabel,
 } from "@/lib/analytics";
 import ThemeToggle from "@/components/ThemeToggle";
+import DemoVideo from "@/components/DemoVideo";
+import { formatBytes } from "@/lib/format";
+import {
+  MAX_FILE_SIZE,
+  ALLOWED_MIMES,
+  MIME_LABEL,
+  EXPIRY_OPTIONS,
+  EXPIRY_LABEL,
+} from "@/lib/document-constants";
 
 const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "";
-
-const EXPIRY_OPTIONS = [
-  { label: "View once", ttl: 0 },
-  { label: "15 min", ttl: 900 },
-  { label: "30 min", ttl: 1800 },
-  { label: "1 hour", ttl: 3600 },
-];
-
-const EXPIRY_LABEL: Record<number, string> = {
-  0: "View once — deleted immediately",
-  900: "15 minutes after first view",
-  1800: "30 minutes after first view",
-  3600: "1 hour after first view",
-};
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / 1048576).toFixed(1)} MB`;
-}
-
-const MIME_LABEL: Record<string, string> = {
-  "application/pdf": "PDF",
-  "image/jpeg": "JPG",
-  "image/png": "PNG",
-  "image/heic": "HEIC",
-  "image/heif": "HEIF",
-};
-
-const ALLOWED_MIMES = Object.keys(MIME_LABEL);
 
 const EXT_TO_MIME: Record<string, string> = {
   pdf: "application/pdf",
@@ -101,7 +81,7 @@ export default function UploadPage() {
 
   const handleFile = useCallback((f: File) => {
     setError(null);
-    if (f.size > 26214400) {
+    if (f.size > MAX_FILE_SIZE) {
       setError("File is too large — maximum size is 25 MB.");
       return;
     }
@@ -302,7 +282,7 @@ export default function UploadPage() {
             justifyContent: "space-between",
           }}
         >
-          <a
+          <Link
             href="/"
             style={{
               display: "flex",
@@ -372,7 +352,7 @@ export default function UploadPage() {
                 animation: "pulse-dot 3s ease-in-out infinite",
               }}
             />
-          </a>
+          </Link>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span
               style={{
@@ -924,6 +904,9 @@ export default function UploadPage() {
         </div>
       </div>
 
+      {/* ── HOW IT WORKS (explainer video) ── */}
+      <DemoVideo />
+
       {/* ── FOOTER ── */}
       <footer
         style={{
@@ -944,7 +927,7 @@ export default function UploadPage() {
               marginBottom: 8,
             }}
           >
-            "Share privately. Delete automatically."
+            &ldquo;Share privately. Delete automatically.&rdquo;
           </p>
           <p
             style={{

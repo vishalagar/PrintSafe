@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { capture, mimeToFileType } from "@/lib/analytics";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -19,11 +20,18 @@ export default function DocumentViewer() {
 
   const [viewState, setViewState] = useState<ViewState>("loading");
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [pdfBytes, setPdfBytes] = useState<Uint8Array | null>(null);
   const [mimeType, setMimeType] = useState("");
   const [ttlAfterView, setTtlAfterView] = useState(1800);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isPrinting, setIsPrinting] = useState(false);
   const initRef = useRef(false);
+  // Mirrors blobUrl so the unmount cleanup below can revoke the latest
+  // object URL. A cleanup closure captures the blobUrl value from the
+  // render that created it (null, since the effect runs once with `[token]`
+  // as its only dep and blobUrl is set later, asynchronously) — a ref reads
+  // the current value instead.
+  const blobUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (initRef.current || !token) return;
@@ -88,7 +96,15 @@ export default function DocumentViewer() {
         setMimeType(displayMime);
         const blob = new Blob([displayBytes], { type: displayMime });
         const url = URL.createObjectURL(blob);
+        blobUrlRef.current = url;
         setBlobUrl(url);
+        // pdf.js is handed the raw bytes directly rather than the blob URL —
+        // Safari's stricter Headers validation throws when pdf.js does
+        // range-request-style fetches against a blob: URL (silently
+        // producing blank pages), while Chromium tolerates it.
+        if (displayMime === "application/pdf") {
+          setPdfBytes(new Uint8Array(displayBytes));
+        }
         setViewState("ready");
         capture("DocumentViewed", { fileType: mimeToFileType(mime) });
       } catch (err) {
@@ -101,11 +117,12 @@ export default function DocumentViewer() {
 
     init();
 
-    // Cleanup blob URL on unmount
+    // Cleanup blob URL on unmount — reads the ref, not blobUrl, since this
+    // closure is created once when the effect runs and blobUrl is only set
+    // later inside the async init() above.
     return () => {
-      if (blobUrl) URL.revokeObjectURL(blobUrl);
+      if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   // Poll status every 5s while document is open — detects if sender deletes it remotely.
@@ -125,6 +142,7 @@ export default function DocumentViewer() {
             if (prev) URL.revokeObjectURL(prev);
             return null;
           });
+          blobUrlRef.current = null;
           setViewState("deleted");
         }
       } catch {
@@ -196,7 +214,7 @@ export default function DocumentViewer() {
           This link is one-time use only. For your protection, the document
           cannot be opened again.
         </p>
-        <a
+        <Link
           href="/"
           style={{
             marginTop: 8,
@@ -212,7 +230,7 @@ export default function DocumentViewer() {
           }}
         >
           Upload a new document
-        </a>
+        </Link>
       </div>
     );
   }
@@ -271,7 +289,7 @@ export default function DocumentViewer() {
         >
           The sender has deleted this document. It is no longer available.
         </p>
-        <a
+        <Link
           href="/"
           style={{
             marginTop: 8,
@@ -287,7 +305,7 @@ export default function DocumentViewer() {
           }}
         >
           Upload a new document
-        </a>
+        </Link>
       </div>
     );
   }
@@ -344,7 +362,7 @@ export default function DocumentViewer() {
         >
           {errorMsg}
         </p>
-        <a
+        <Link
           href="/"
           style={{
             marginTop: 8,
@@ -360,7 +378,7 @@ export default function DocumentViewer() {
           }}
         >
           ← Back to home
-        </a>
+        </Link>
       </div>
     );
   }
@@ -409,13 +427,16 @@ export default function DocumentViewer() {
   // Renders each PDF page to canvas at 2× scale, then prints via iframe.
   // Raw PDF blob is never exposed in a navigable tab with a native Download button.
   // "Save as PDF" output becomes a rasterized image copy rather than the original vector PDF.
-  async function printPDFViaCanvas(url: string) {
+  async function printPDFViaCanvas(bytes: Uint8Array) {
     setIsPrinting(true);
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const pdfjsLib: any = await import("pdfjs-dist");
       pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
-      const pdf = await pdfjsLib.getDocument({ url }).promise;
+      // Pass raw bytes rather than a blob: URL — Safari throws inside pdf.js's
+      // range-request Headers handling when fetching a blob: URL, which
+      // otherwise silently leaves every page blank.
+      const pdf = await pdfjsLib.getDocument({ data: bytes.slice() }).promise;
       const dataUrls: string[] = [];
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
@@ -462,7 +483,9 @@ export default function DocumentViewer() {
 
       // Wait for ALL images to load before printing — data URLs for large
       // 2× PNG pages can take longer than a fixed timeout to decode.
-      const imgs = Array.from(iframeDoc.querySelectorAll("img")) as HTMLImageElement[];
+      const imgs = Array.from(
+        iframeDoc.querySelectorAll("img"),
+      ) as HTMLImageElement[];
       await Promise.all(
         imgs.map(
           (img) =>
@@ -488,7 +511,8 @@ export default function DocumentViewer() {
     capture("DocumentPrinted", { fileType: mimeToFileType(mimeType) });
 
     if (isPDF) {
-      printPDFViaCanvas(blobUrl);
+      if (!pdfBytes) return;
+      printPDFViaCanvas(pdfBytes);
       return;
     }
 
@@ -566,8 +590,8 @@ export default function DocumentViewer() {
 
       {/* Document render area */}
       <div style={{ maxWidth: 900, margin: "0 auto", padding: "24px 16px" }}>
-        {isPDF && blobUrl ? (
-          <PDFViewer blobUrl={blobUrl} />
+        {isPDF && pdfBytes ? (
+          <PDFViewer pdfBytes={pdfBytes} />
         ) : isImage && blobUrl ? (
           <div style={{ textAlign: "center" }}>
             <img
@@ -636,11 +660,15 @@ export default function DocumentViewer() {
 }
 
 // Lazy-loaded PDF viewer — avoids SSR issues with react-pdf
-function PDFViewer({ blobUrl }: { blobUrl: string }) {
+function PDFViewer({ pdfBytes }: { pdfBytes: Uint8Array }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [ReactPDF, setReactPDF] = useState<any>(null);
   const [numPages, setNumPages] = useState(1);
   const [currentPage, setCurrentPage] = useState(1);
+  // react-pdf re-parses the document whenever the `file` prop reference
+  // changes, so memoize it against the (stable) pdfBytes reference. A fresh
+  // copy avoids pdf.js transferring/detaching the shared buffer.
+  const file = useMemo(() => ({ data: pdfBytes.slice() }), [pdfBytes]);
 
   useEffect(() => {
     import("react-pdf").then((mod) => {
@@ -681,7 +709,7 @@ function PDFViewer({ blobUrl }: { blobUrl: string }) {
       }}
     >
       <Document
-        file={blobUrl}
+        file={file}
         onLoadSuccess={({ numPages: n }: { numPages: number }) =>
           setNumPages(n)
         }
