@@ -39,6 +39,37 @@ section.
   warnings only), `npm run build` passes, playback confirmed in Chrome at
   desktop and narrow widths with no horizontal scroll.
 
+### Scanned PDFs rendered blank — pdf.js JPEG 2000 decoder was never shipped
+
+Pages containing JPEG 2000 images rendered as blank white canvases at the
+correct size, with nothing thrown and nothing logged. Test document had 6
+`JPXDecode` + 5 `DCTDecode` images; the six JPX pages were exactly the six
+blank ones.
+
+pdf.js 5 decodes JPX via OpenJPEG-as-WebAssembly, fetched at render time from
+the `wasmUrl` passed to `getDocument()`. It was never set. pdf.js does not
+surface this — the worker `warn()`s, sends null image data, and resolves the
+render as a **success**. Hence a silent blank page.
+
+- `loadPdfDocument` now passes `wasmUrl`, `standardFontDataUrl`, `cMapUrl`.
+- `scripts/copy-pdfjs-assets.mjs` copies wasm/fonts/cmaps + worker from
+  `node_modules/pdfjs-dist` into `public/`, on **postinstall and build**, so a
+  skipped postinstall on Vercel cannot silently reintroduce it.
+- `public/pdfjs/` is generated (3.2 MB) and gitignored.
+
+This affected every scanned document, not one file — scanners and iLovePDF
+emit JPX routinely, which is precisely PrintSafe's use case.
+
+Two earlier fixes this session were real bugs but not *this* bug: pdf.js
+detaching the `Uint8Array` passed to `getDocument({data})` (kept — always pass
+a throwaway `.slice()`), and the viewer re-parsing per page (now parses once
+and renders into a private offscreen canvas, copied across only when complete).
+
+Ruled out with evidence: canvas size/memory limits, worker version mismatch, CSP.
+
+**Known follow-up:** the print path rasterises every page at `scale: 2` — ~20 Mpx
+for a large scan, over iOS Safari's canvas limit. Separate bug, still open.
+
 ### Full test pass — `delete_after` migration applied, everything green
 
 User ran the `delete_after` migration in the Supabase SQL editor. Verified
