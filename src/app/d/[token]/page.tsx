@@ -3,7 +3,8 @@
 import { useEffect, useState, useRef } from "react";
 import {
   loadPdfDocument,
-  startPageRender,
+  startPageRenderOffscreen,
+  blitToCanvas,
   isRenderCancelled,
   getPageCssWidth,
 } from "@/lib/pdf-doc";
@@ -693,8 +694,9 @@ function PDFViewer({ pdfBytes }: { pdfBytes: Uint8Array }) {
   }, [pdfBytes]);
 
   // Render the visible page whenever it (or the parsed document) changes.
-  // pdf.js rejects concurrent renders on one canvas, so the previous task is
-  // cancelled before a new one starts.
+  // The page is drawn into a private offscreen canvas and only copied across
+  // once it is complete, so a cancelled or still-running render never leaves a
+  // blank page on screen.
   useEffect(() => {
     const doc = docRef.current;
     const canvas = canvasRef.current;
@@ -709,19 +711,23 @@ function PDFViewer({ pdfBytes }: { pdfBytes: Uint8Array }) {
         const cssWidth = Math.min(window.innerWidth - 48, 860);
         const unscaledWidth = await getPageCssWidth(doc, currentPage);
         if (cancelled) return;
+
         const dpr = Math.min(window.devicePixelRatio || 1, 2);
-        task = await startPageRender(
+        const started = await startPageRenderOffscreen(
           doc,
           currentPage,
-          canvas,
           (cssWidth / unscaledWidth) * dpr,
         );
+        task = started.task;
         if (cancelled) {
           task.cancel();
           return;
         }
+
         await task.promise;
         if (cancelled) return;
+
+        blitToCanvas(started.canvas, canvas);
         canvas.style.width = `${cssWidth}px`;
         canvas.style.height = "auto";
       } catch (e) {
