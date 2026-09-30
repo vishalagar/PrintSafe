@@ -14,122 +14,38 @@
 ---
 
 ## Last Session Summary
-**Date:** 2026-09-17 (session 14)
 
-### Explainer video embedded on the landing page
+**Date:** 2026-09-30 (session 15)
 
-The 52 s voiced explainer from session 13 now ships on `/`, between the
-upload card and the footer, as a "Can your developers see my documents?"
-section.
+### "Report a problem" → Telegram, with auto-detect nudge
 
-- Assets copied to `public/demo/` — `how-it-works.mp4` (2.6 MB, 1080p30,
-  AAC) and `how-it-works-poster.jpg` (101 KB).
-- New component `src/components/DemoVideo.tsx`; `src/app/page.tsx` only
-  gained the import and one `<DemoVideo />` tag.
-- **Never autoplays** — the clip is narrated, so it stays on the poster
-  behind a yellow play button until clicked. `preload="none"` keeps the
-  2.6 MB off first paint; only the poster loads.
-- `playsInline` so iOS Safari plays in place instead of going fullscreen.
-- Controls are revealed *before* `play()` is awaited, so a rejected play
-  (autoplay policy, stalled network) leaves native controls to retry with
-  rather than a dead poster.
-- PostHog events: `DemoVideoPlayed`, `DemoVideoPlayFailed`,
-  `DemoVideoCompleted`.
-- Verified: `tsc --noEmit` clean, lint clean (4 pre-existing `<img>`
-  warnings only), `npm run build` passes, playback confirmed in Chrome at
-  desktop and narrow widths with no horizontal scroll.
+When a known step fails, the page shows a nudge card ("Hmm, that shouldn't
+happen. Report it and I'll look into it"), and the report arrives in the
+owner's Telegram. Planned in `tasks/plan-issue-reporting.md`, mockup at
+https://claude.ai/artifact/RX2JRGkrk6E1zN26rsPV7q.
 
-### Scanned PDFs rendered blank — pdf.js JPEG 2000 decoder was never shipped
+- **`POST /api/report`**: whitelist-validated payload (`src/lib/report.ts`),
+  5/hr/IP + 200/day global (fail closed), 4 KB cap, honeypot. Sends to
+  Telegram (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`) and adds a tags-only
+  Sentry event. Returns 503 if Telegram isn't configured. Nothing stored.
+- **`src/components/ReportIssue.tsx`**: `ReportNudge` (auto), `ReportLink`
+  (footer, manual) and the sheet (form → paper-plane sending → RECEIVED stamp).
+  Bottom sheet on phones, centred card from 640px. CSS-only motion in
+  `globals.css` under "ISSUE REPORTER", off under `prefers-reduced-motion`.
+- **Hooked into**: upload page (`api`/`storage`/`confirm`/`encryption` steps;
+  no nudge on 429), viewer (`key-missing`, `file-fetch`, `decrypt`,
+  `pdf-parse`, `pdf-render`; no nudge on a `/api/doc` 404, since that's an
+  expired link). Footer link on `/`, `/share`, `/status/[token]`.
+- **Privacy**: route templates, not paths; error class names, not messages;
+  no filename/token/key. Sentry gets tags only. `docs/security.md` § L.
+- **Verified**: tsc, lint (4 pre-existing `<img>` warnings), `next build`.
+  API exercised against mocked Redis/Telegram (validation, honeypot, 413,
+  429 on the 6th report). Full UI flow driven in Chromium at 390px and
+  1280px, dark mode, reduced motion, Esc to close; no horizontal scroll, no
+  page errors, and the captured payload holds no filename.
+- **Not verified**: a real Telegram delivery. Needs the two env vars set.
 
-Pages containing JPEG 2000 images rendered as blank white canvases at the
-correct size, with nothing thrown and nothing logged. Test document had 6
-`JPXDecode` + 5 `DCTDecode` images; the six JPX pages were exactly the six
-blank ones.
-
-pdf.js 5 decodes JPX via OpenJPEG-as-WebAssembly, fetched at render time from
-the `wasmUrl` passed to `getDocument()`. It was never set. pdf.js does not
-surface this — the worker `warn()`s, sends null image data, and resolves the
-render as a **success**. Hence a silent blank page.
-
-- `loadPdfDocument` now passes `wasmUrl`, `standardFontDataUrl`, `cMapUrl`.
-- `scripts/copy-pdfjs-assets.mjs` copies wasm/fonts/cmaps + worker from
-  `node_modules/pdfjs-dist` into `public/`, on **postinstall and build**, so a
-  skipped postinstall on Vercel cannot silently reintroduce it.
-- `public/pdfjs/` is generated (3.2 MB) and gitignored.
-
-This affected every scanned document, not one file — scanners and iLovePDF
-emit JPX routinely, which is precisely PrintSafe's use case.
-
-Two earlier fixes this session were real bugs but not *this* bug: pdf.js
-detaching the `Uint8Array` passed to `getDocument({data})` (kept — always pass
-a throwaway `.slice()`), and the viewer re-parsing per page (now parses once
-and renders into a private offscreen canvas, copied across only when complete).
-
-Ruled out with evidence: canvas size/memory limits, worker version mismatch, CSP.
-
-**Known follow-up:** the print path rasterises every page at `scale: 2` — ~20 Mpx
-for a large scan, over iOS Safari's canvas limit. Separate bug, still open.
-
-### Full test pass — `delete_after` migration applied, everything green
-
-User ran the `delete_after` migration in the Supabase SQL editor. Verified
-end to end against real R2 / Supabase / Redis:
-
-- **`test-e2e.mjs` — all 3 sizes pass** (100 B, 3 KB, 20 KB): encrypt →
-  presigned PUT to R2 → confirm → metadata → file proxy → decrypt → 410 on
-  second access → delete.
-- **Fixed a bug in the test harness itself** (`test-e2e.mjs:30`). It
-  returned `Buffer.from(str,'base64').buffer`; Node allocates small Buffers
-  out of a shared pool, so `.buffer` was the whole ~8 KB pool rather than
-  the 32-byte key — `importKey` rejected it with "Invalid key length". Now
-  slices `byteOffset..byteOffset+byteLength`. **App code was never wrong** —
-  `src/lib/crypto.ts` allocates a fresh `Uint8Array`, so its `.buffer` is
-  exactly sized. This is why the test had never passed before.
-- **Browser flow**: upload PDF → share page (QR + `#key` fragment) →
-  viewer decrypts and renders with watermark + "deleted 30 min after you
-  close this tab" banner → status page timeline.
-- **Migration confirmed working**: after view, `delete_after` = `viewed_at`
-  + `ttl_after_view` exactly. Backdating it made `/api/status` flip
-  `viewed` → `deleted` on the next hit, which is the session-12 lazy-delete
-  fix doing its job.
-- No console errors anywhere in the flow.
-
-Note: there is no `deleted_at` column in the schema, so the status page
-timeline renders "Deleted —" with no timestamp. Cosmetic, by design.
-
-> Session 13 (five marketing video cuts) summary follows.
-
-### Marketing videos — five cuts built with /brag + Hyperframes (no app code changed)
-
-User asked what `github.com/latent-spaces/brag` was, then had it used on
-PrintSafe. **No `src/` code was touched this session** — this was all
-marketing asset production plus one new doc.
-
-Built five videos, each an HTML/GSAP composition screenshotted frame-by-frame
-in headless Chrome and encoded with FFmpeg. All local, all free, fully
-re-renderable:
-
-| Output | Format | Len |
-|--------|--------|-----|
-| `brag-output/brag.mp4` — comedic launch cut | 1920×1080 | 21s |
-| `brag-output-vertical/` — social cut | 1080×1920 | 21s |
-| `brag-output-technical/` — architecture film (dark theme) | 1920×1080 | 20.5s |
-| `brag-output-explainer/brag-explainer.mp4` — tech explainer | 1920×1080 | 31s |
-| `brag-output-explainer/brag-explainer-voiced.mp4` — narrated | 1920×1080 | 52s |
-
-The explainer answers "can your developers see my documents?" using the real
-architecture from `docs/security.md` — client-side AES-256-GCM, the key in the
-URL fragment, ciphertext under opaque UUIDs, and a mocked `documents` row whose
-`key` field reads "no such column". All tokens/keys/hex shown are fake.
-
-Narration uses Kokoro TTS locally (voice `af_heart`), which needed a one-time
-isolated venv at `~/.cache/hyperframes-tts` — the `youtube` conda env was left
-untouched. The 310 MB model stalls through the CLI and was fetched directly;
-it is cached now.
-
-Full pipeline, environment gotchas (FFmpeg only exists in the `youtube` conda
-env; render with `--low-memory-mode --workers 1` on 8 GB RAM), and lint/contrast
-rules are written up in **`tasks/video-production.md`**.
+> Sessions 13–14 (marketing videos, landing-page explainer, JPX blank-page fix) moved to `tasks/history.md`.
 
 > Session 12 summary (codebase review + fixes) moved to `tasks/history.md`.
 
@@ -138,6 +54,7 @@ rules are written up in **`tasks/video-production.md`**.
 ## What's Next
 
 ### Before next deploy (blocking)
+- **Set `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID`** in Vercel (see `docs/setup.md`), then send one test report from production.
 - ~~Run the `delete_after` migration in Supabase SQL editor~~ ✅ done
   session 14, verified writing correctly.
 - ~~Run `test-e2e.mjs` against a real dev server at least once~~ ✅ done

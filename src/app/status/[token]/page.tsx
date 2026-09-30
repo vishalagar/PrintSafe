@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { capture } from "@/lib/analytics";
 import ThemeToggle from "@/components/ThemeToggle";
+import { ReportLink } from "@/components/ReportIssue";
 import { formatBytes } from "@/lib/format";
 
 type DocStatus = "pending" | "viewed" | "deleted" | "expired";
@@ -752,6 +753,7 @@ export default function StatusPage() {
           >
             Encrypted in browser · Never stored · Permanent deletion
           </p>
+          <ReportLink page="/status/[token]" />
         </div>
       </footer>
     </div>

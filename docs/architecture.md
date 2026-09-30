@@ -16,6 +16,7 @@
   /src/app/api/file/[token]/route.ts  → Proxy encrypted blob from R2 (browser can't fetch R2 directly)
   /src/app/api/status/[token]/route.ts → Status check
   /src/app/api/stats/route.ts         → Public seeded+real document count (for the upload page's trust counter)
+  /src/app/api/report/route.ts        → "Report a problem" → Telegram (whitelisted payload, rate-limited)
   /src/app/api/cron/cleanup/route.ts  → Purge expired/stale/abandoned docs from R2 (CRON_SECRET protected)
   /src/app/api/cron/keepalive/route.ts → Daily ping to Supabase + Redis so free-tier inactivity policies don't pause them
   /src/app/api/admin/login/route.ts   → Admin session cookie login (rate-limited, ADMIN_SECRET)
@@ -74,6 +75,7 @@ GET  /api/doc/:token                 → Mark viewed, return iv/mimeType/ttl —
 GET  /api/file/:token                → Proxy encrypted ciphertext blob from R2 (avoids browser CORS); rate-limited per token
 GET  /api/status/:token              → Check status (for uploader); lazily deletes past-TTL 'viewed' docs
 GET  /api/stats                      → Public: returns total document count (seeded 1000 + real; 60s cache)
+POST /api/report                     → Issue report → owner's Telegram. 5/hr/IP + 200/day global; see security.md § L
 DEL  /api/doc/:token                 → Manual delete by uploader (x-delete-token header)
 GET|POST /api/cron/cleanup           → Purge expired/stale/abandoned docs (Authorization: Bearer CRON_SECRET) — daily at 2 AM
 GET|POST /api/cron/keepalive         → Ping Supabase + Redis to avoid free-tier pause — daily at 3 AM

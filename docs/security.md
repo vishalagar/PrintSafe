@@ -120,6 +120,19 @@ Canonical record of every security decision, pattern, and known gap.
 
 ---
 
+## L. Issue Reports (`/api/report`)
+
+User-submitted "Report a problem" reports, forwarded to the owner's Telegram chat. Nothing is stored.
+
+- **Whitelist payload:** `src/lib/report.ts` defines every field. `source`, `step`, `page`, `fileType`, `sizeBucket` and `ttl` are enums; `page` is a **route template** (`/d/[token]`), never a concrete path, so no token or `#key` fragment can be sent. The client never reads `location.href`.
+- **Error detail:** only an `Error`'s class name (`/^[A-Za-z]{1,40}$/`), never its message — exception text can echo input.
+- **Never sent:** file bytes, filename, share link, token, decryption key, raw IP. The upload page has the filename in scope but the report builder does not take it.
+- **Free text:** optional message (≤1000 chars) and reply email (≤254, format-checked), HTML-escaped before going into the Telegram message. They go to Telegram only — **Sentry gets tags only** (`report_ref`, `report_step`, …), never the message or email.
+- **Abuse:** 5/hour/IP + 200/day global (both fail closed via `checkRateLimit`), 4 KB body cap, hidden honeypot field (filled → fake success, nothing delivered). No CAPTCHA — the global cap bounds the worst case at 200 Telegram messages a day.
+- **Secrets:** `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` are server-only. Missing config → 503, so the user sees "Couldn't send that" instead of a false "Received".
+
+---
+
 ## J. Known Gaps
 
 | Gap | Severity | Status |
@@ -142,6 +155,7 @@ Canonical record of every security decision, pattern, and known gap.
 
 | Date | Change |
 |------|--------|
+| 2026-09-30 | **Issue reporting (session 15)** — new `POST /api/report` forwards user reports to Telegram. Whitelist-only payload (route templates, not paths; error class names, not messages; no filename/token/key), rate-limited 5/hr/IP + 200/day global (fail closed), 4 KB cap, honeypot. Sentry receives tags only. See section L |
 | 2026-09-15 | **TTL enforcement + hardening pass (session 12)** — added `delete_after` column, enforced lazily by `/api/file` and `/api/status` (previously only the daily cron enforced `ttl_after_view`, so a document could still be downloaded past its stated deletion window). Fixed the cron's viewed-docs query to filter `delete_after` in SQL instead of paginating 100 rows and filtering in JS (could silently skip overdue docs once >100 were live). `ip_hash` switched from unsalted SHA-256 to HMAC-SHA256 (`IP_HASH_SECRET`) — SHA-256 of an IPv4 is reversible via rainbow table. Added a per-token rate limit to `/api/file/:token` (20/5min). Raised the upload rate limit to 30/hr/IP (CGNAT). `/api/upload/confirm` now deletes a size-mismatched R2 object immediately instead of leaving it for the 1-hour abandoned-upload cron pass. Fixed the document viewer's unmount cleanup revoking a stale `null` blob URL instead of the real one (closure captured the initial render's state). Added `nosniff`/HSTS/`Referrer-Policy`/`Permissions-Policy` site-wide and `X-Frame-Options: DENY` on `/d/:token` via `next.config.ts` `headers()` |
 | 2026-09-14 | **Presigned R2 upload flow** — fixes files 4.5–25 MB silently failing (Vercel serverless body cap ~4.5 MB, app allows up to 25 MB). `/api/upload` now returns a presigned R2 PUT URL instead of accepting the ciphertext body; browser PUTs directly to R2; new `/api/upload/confirm` verifies the object landed (`HeadObjectCommand`, size cross-check) before the document is servable. Added nullable `documents.confirmed_at` column — a `'pending'` row with `confirmed_at IS NULL` is an in-progress/abandoned upload, not a real document; `/api/doc/:token` and `/api/file/:token` now 404 on it instead of leaking metadata or attempting to proxy a nonexistent blob. Cron cleanup gained a third pass purging rows unconfirmed for over 1 hour (session 10) |
 | 2026-04-09 | SEO: sitemap.ts, robots.ts, Google site verification, Open Graph/Twitter metadata. Fixed blank 1st page in PDF print (removed `min-height:100vh`). Fixed view-once PDFs disappearing on page change (skip status polling for TTL=0). Added `/api/stats` public route. (session 9) |

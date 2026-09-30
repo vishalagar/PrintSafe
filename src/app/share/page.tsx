@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ThemeToggle from "@/components/ThemeToggle";
+import { ReportLink } from "@/components/ReportIssue";
 
 interface UploadData {
   token: string;
@@ -590,6 +591,7 @@ export default function SharePage() {
           >
             Encrypted in browser · Never stored · Permanent deletion
           </p>
+          <ReportLink page="/share" />
         </div>
       </footer>
     </div>

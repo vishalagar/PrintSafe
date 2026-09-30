@@ -361,3 +361,282 @@ body::before {
 .logo-dark { display: none !important; }
 html[data-theme="dark"] .logo-light { display: none !important; }
 html[data-theme="dark"] .logo-dark { display: block !important; }
+
+/* ═══════════════════════════════════════════════════
+   ISSUE REPORTER — src/components/ReportIssue.tsx
+   Nudge card, report sheet, paper-plane send, RECEIVED stamp.
+   All motion is off under prefers-reduced-motion (end of section).
+═══════════════════════════════════════════════════ */
+
+@keyframes ps-wobble {
+  0%, 100% { transform: rotate(0); }
+  15% { transform: rotate(-7deg); }
+  30% { transform: rotate(6deg); }
+  45% { transform: rotate(-4deg); }
+  60% { transform: rotate(3deg); }
+  75% { transform: rotate(-1deg); }
+}
+@keyframes ps-crack { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@keyframes ps-nudge-in {
+  from { transform: translateY(24px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+@keyframes ps-sheet-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes ps-pop-in {
+  from { transform: translate(-50%, -46%) scale(0.96); opacity: 0; }
+  to   { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+}
+@keyframes ps-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ps-fold {
+  0% { transform: scaleY(1); opacity: 1; }
+  35% { transform: scaleY(0.15); opacity: 1; }
+  40%, 100% { opacity: 0; }
+}
+@keyframes ps-fly {
+  0%, 38% { transform: translate(0, 0) scale(0.9); opacity: 0; }
+  45% { transform: translate(0, 0) rotate(-4deg) scale(1); opacity: 1; }
+  100% { transform: translate(230px, -210px) rotate(-18deg) scale(0.55); opacity: 0; }
+}
+@keyframes ps-trail {
+  0%, 40% { stroke-dashoffset: 260; opacity: 0; }
+  45% { opacity: 1; }
+  100% { stroke-dashoffset: 0; opacity: 0; }
+}
+@keyframes ps-stamp {
+  0% { transform: scale(2.4) rotate(-22deg); opacity: 0; }
+  60% { transform: scale(0.94) rotate(-7deg); opacity: 1; }
+  100% { transform: scale(1) rotate(-8deg); opacity: 1; }
+}
+
+.ps-wobble { transform-origin: 50% 90%; animation: ps-wobble 1.1s ease-in-out 0.35s 2; }
+.ps-crack  { animation: ps-crack 1.4s ease-in-out infinite; }
+.ps-nudge-in { animation: ps-nudge-in 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
+.ps-fold  { transform-box: fill-box; transform-origin: 50% 0; animation: ps-fold 2.4s ease-in infinite; }
+.ps-fly   { animation: ps-fly 2.4s cubic-bezier(0.45, 0, 0.55, 1) infinite; }
+.ps-trail { stroke-dasharray: 6 8; animation: ps-trail 2.4s linear infinite; }
+.ps-stamp {
+  border: 4px solid var(--red);
+  color: var(--red);
+  padding: 10px 22px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 800;
+  font-size: 28px;
+  letter-spacing: 4px;
+  box-shadow: inset 0 0 0 3px var(--surface), inset 0 0 0 5px var(--red);
+  margin: 12px 0 8px;
+  animation: ps-stamp 0.55s cubic-bezier(0.2, 0.9, 0.3, 1.3) 0.1s both;
+}
+
+/* Nudge card */
+.ps-report-nudge {
+  background: var(--surface);
+  border: 2px solid var(--ink);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 16px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  text-align: left;
+}
+.ps-report-nudge-row { display: flex; gap: 14px; align-items: center; }
+.ps-report-nudge-icon {
+  width: 60px;
+  height: 60px;
+  flex-shrink: 0;
+  background: var(--amber-banner-bg);
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ps-report-nudge-title {
+  font-family: 'Fraunces', ui-serif, Georgia, serif;
+  font-weight: 800;
+  font-size: 17px;
+  line-height: 1.25;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.ps-report-nudge-body { font-size: 13px; line-height: 1.5; color: var(--text-mid); }
+.ps-report-thanks {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  background: var(--success-bg);
+  border: 2px solid var(--success-border);
+  border-radius: 8px;
+  color: var(--success-text);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+}
+
+/* Buttons */
+.ps-report-btn-dark,
+.ps-report-btn-yellow,
+.ps-report-btn-plain {
+  min-height: 48px;
+  width: 100%;
+  border: 2px solid var(--ink);
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 15px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.ps-report-btn-dark   { background: var(--ink); color: var(--surface); box-shadow: 3px 3px 0 var(--yellow); }
+.ps-report-btn-yellow { background: var(--yellow); color: #0D0D0D; box-shadow: var(--shadow-sm); }
+.ps-report-btn-plain  { background: transparent; color: var(--text); border-color: transparent; }
+.ps-report-btn-dark:active,
+.ps-report-btn-yellow:active { transform: translate(2px, 2px); box-shadow: none; }
+
+/* Footer link — sits on --bg, so white text */
+.ps-report-link { font-size: 13px; color: #FFFFFF; margin-top: 14px; }
+.ps-report-link button {
+  background: none;
+  border: none;
+  padding: 12px 4px;
+  color: #FFFFFF;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+/* Sheet — bottom sheet on phones, centred card from 640px */
+.ps-report-root { position: fixed; inset: 0; z-index: 1000; }
+.ps-report-overlay { position: absolute; inset: 0; background: var(--overlay); animation: ps-fade 0.25s ease both; }
+.ps-report-sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-height: 92vh;
+  overflow-y: auto;
+  box-sizing: border-box;
+  background: var(--surface);
+  color: var(--text);
+  border-top: 2px solid var(--ink);
+  border-radius: 16px 16px 0 0;
+  padding: 20px 18px calc(22px + env(safe-area-inset-bottom));
+  animation: ps-sheet-up 0.38s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+@media (min-width: 640px) {
+  .ps-report-sheet {
+    left: 50%;
+    right: auto;
+    top: 50%;
+    bottom: auto;
+    width: 440px;
+    border: 2px solid var(--ink);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: 24px;
+    animation: ps-pop-in 0.3s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+    transform: translate(-50%, -50%);
+  }
+}
+.ps-report-form { display: flex; flex-direction: column; gap: 12px; }
+.ps-report-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.ps-report-title {
+  font-family: 'Fraunces', ui-serif, Georgia, serif;
+  font-weight: 800;
+  font-size: 22px;
+  line-height: 1.2;
+  color: var(--text);
+}
+.ps-report-sub { font-size: 13px; color: var(--text-dim); margin-top: 4px; }
+.ps-report-sub-wide { font-size: 14px; line-height: 1.5; max-width: 320px; color: var(--text-mid); }
+.ps-report-close {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.ps-report-attached {
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background: var(--surface2);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.ps-report-label-mono {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+.ps-report-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.ps-report-chips span {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  background: var(--surface);
+  border: 1.5px solid var(--ink);
+  border-radius: 4px;
+  padding: 3px 6px;
+}
+.ps-report-never { font-size: 12px; line-height: 1.4; color: var(--text-mid); }
+.ps-report-label { font-size: 13px; font-weight: 700; }
+.ps-report-label span { font-weight: 400; color: var(--text-dim); }
+.ps-report-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  padding: 10px;
+  font: inherit;
+  font-size: 16px; /* 16px stops iOS zooming on focus */
+  background: var(--surface);
+  color: var(--text);
+  resize: none;
+}
+.ps-report-hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+.ps-report-center {
+  min-height: 360px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  text-align: center;
+}
+.ps-report-ref {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  border: 2px dashed var(--ink);
+  border-radius: 6px;
+  padding: 6px 10px;
+  margin-bottom: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ps-wobble, .ps-crack, .ps-nudge-in, .ps-fold, .ps-fly, .ps-trail, .ps-stamp,
+  .ps-report-overlay, .ps-report-sheet { animation: none; }
+  /* Without motion the plane would sit invisible at opacity 0 — show it parked. */
+  .ps-fold { opacity: 0; }
+  .ps-fly { opacity: 1; }
+}

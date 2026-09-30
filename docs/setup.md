@@ -27,6 +27,8 @@ File: `.env.local` (project root) — **never commit. Add to `.gitignore`.**
 | `UPSTASH_REDIS_REST_URL` | Upstash → your database → REST URL |
 | `UPSTASH_REDIS_REST_TOKEN` | Upstash → your database → REST Token |
 | `RESEND_API_KEY` | Resend → API Keys (Phase 2 — create now, use later) |
+| `TELEGRAM_BOT_TOKEN` | Issue reports. Telegram → @BotFather → `/newbot` → token ⚠ private |
+| `TELEGRAM_CHAT_ID` | Issue reports. Send your bot any message, then open `https://api.telegram.org/bot<TOKEN>/getUpdates` → `message.chat.id`. Without both vars `/api/report` returns 503 |
 | `NEXT_PUBLIC_APP_URL` | `http://localhost:3000` locally; production domain in Vercel |
 | `CRON_SECRET` | Random 32-char string — protects the cron endpoint |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Cloudflare → Turnstile → your widget → Site Key (public, browser-safe) |

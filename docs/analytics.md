@@ -35,7 +35,11 @@ No Google Analytics. All event props are non-identifying (file type, size bucket
 | `FileSelected` | Upload page — after `setFile(f)` | `fileType`, `fileSizeBucket` |
 | `UploadStarted` | Upload page — start of `handleUpload()` | `fileType`, `ttlLabel` |
 | `UploadSuccess` | Upload page — after token received | `fileType`, `ttlLabel` |
-| `UploadError` | Upload page — on any failure | `reason` (`api`\|`ratelimit`\|`encryption`) |
+| `UploadError` | Upload page — on any failure | `reason` (`api`\|`ratelimit`\|`encryption`\|`storage`\|`confirm`) |
+| `ReportNudgeShown` | Upload page / viewer — a failed step shows the report card | `source`, `step` |
+| `ReportOpened` | Report sheet opened (nudge or footer link) | `source`, `auto` |
+| `ReportSent` | `/api/report` accepted the report | `source`, `step` |
+| `ReportFailed` | `/api/report` refused or the network failed | `status` (HTTP code or `network`) |
 | `DocumentViewed` | Viewer — after `setViewState('ready')` | `fileType` |
 | `DocumentPrinted` | Viewer — inside `handlePrint()` | `fileType` |
 | `ManualDelete` | Status page — after successful DELETE | _(no props)_ |

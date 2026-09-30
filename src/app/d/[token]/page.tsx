@@ -12,6 +12,8 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { capture, mimeToFileType } from "@/lib/analytics";
 import ThemeToggle from "@/components/ThemeToggle";
+import { ReportNudge } from "@/components/ReportIssue";
+import { errorNameOf, type ReportContext, type ReportStep } from "@/lib/report";
 
 type ViewState =
   | "loading"
@@ -31,6 +33,8 @@ export default function DocumentViewer() {
   const [mimeType, setMimeType] = useState("");
   const [ttlAfterView, setTtlAfterView] = useState(1800);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // Set alongside viewState "error" when the failure is worth reporting.
+  const [reportCtx, setReportCtx] = useState<ReportContext | null>(null);
   const [isPrinting, setIsPrinting] = useState(false);
   const initRef = useRef(false);
   // Mirrors blobUrl so the unmount cleanup below can revoke the latest
@@ -48,10 +52,15 @@ export default function DocumentViewer() {
       const keyStr = window.location.hash.slice(1);
       if (!keyStr) {
         setErrorMsg("Missing decryption key — the link may be malformed.");
+        setReportCtx({ source: "viewer", step: "key-missing", page: "/d/[token]" });
         setViewState("error");
         return;
       }
 
+      // Which stage failed, for the issue report. Advanced as each one starts.
+      let step: ReportStep = "doc-fetch";
+      let status: number | undefined;
+      let fileType: ReportContext["fileType"];
       try {
         const res = await fetch(`/api/doc/${token}`);
         if (res.status === 410) {
@@ -59,20 +68,27 @@ export default function DocumentViewer() {
           return;
         }
         if (!res.ok) {
+          status = res.status;
           throw new Error("Document not found or unavailable.");
         }
 
         const { iv, mimeType: mime, ttlAfterView: ttl } = await res.json();
+        fileType = mimeToFileType(mime);
         setMimeType(mime);
         setTtlAfterView(ttl ?? 1800);
         setViewState("decrypting");
 
         // Fetch ciphertext via API proxy — same-origin, no CORS issues
+        step = "file-fetch";
         const cipherRes = await fetch(`/api/file/${token}`);
-        if (!cipherRes.ok) throw new Error("Failed to retrieve document data.");
+        if (!cipherRes.ok) {
+          status = cipherRes.status;
+          throw new Error("Failed to retrieve document data.");
+        }
         const ciphertext = await cipherRes.arrayBuffer();
 
         // Decrypt in browser — key never leaves client
+        step = "decrypt";
         const { base64urlToKey, decryptFile } = await import("@/lib/crypto");
         const key = await base64urlToKey(keyStr);
         const plaintext = await decryptFile(ciphertext, key, iv);
@@ -118,6 +134,17 @@ export default function DocumentViewer() {
         setErrorMsg(
           err instanceof Error ? err.message : "Failed to load document.",
         );
+        // A 404 from /api/doc is an expired or mistyped link, not a bug.
+        if (!(step === "doc-fetch" && status === 404)) {
+          setReportCtx({
+            source: "viewer",
+            step,
+            page: "/d/[token]",
+            status,
+            errorName: status ? undefined : errorNameOf(err),
+            fileType,
+          });
+        }
         setViewState("error");
       }
     }
@@ -369,6 +396,14 @@ export default function DocumentViewer() {
         >
           {errorMsg}
         </p>
+        {reportCtx && (
+          <div style={{ width: "100%", maxWidth: 400 }}>
+            <ReportNudge
+              context={reportCtx}
+              body="Send a quick report and I’ll look into it. The document itself is never included."
+            />
+          </div>
+        )}
         <Link
           href="/"
           style={{
@@ -672,6 +707,7 @@ function PDFViewer({ pdfBytes }: { pdfBytes: Uint8Array }) {
   const [numPages, setNumPages] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [error, setError] = useState<string | null>(null);
+  const [reportCtx, setReportCtx] = useState<ReportContext | null>(null);
 
   // Parse once per document.
   useEffect(() => {
@@ -686,6 +722,13 @@ function PDFViewer({ pdfBytes }: { pdfBytes: Uint8Array }) {
         if (cancelled) return;
         console.error("PDF parse failed", e);
         setError("This document could not be displayed.");
+        setReportCtx({
+          source: "viewer",
+          step: "pdf-parse",
+          page: "/d/[token]",
+          errorName: errorNameOf(e),
+          fileType: "pdf",
+        });
       });
     return () => {
       cancelled = true;
@@ -734,6 +777,13 @@ function PDFViewer({ pdfBytes }: { pdfBytes: Uint8Array }) {
         if (cancelled || isRenderCancelled(e)) return;
         console.error("PDF page render failed", e);
         setError("This page could not be rendered.");
+        setReportCtx({
+          source: "viewer",
+          step: "pdf-render",
+          page: "/d/[token]",
+          errorName: errorNameOf(e),
+          fileType: "pdf",
+        });
       }
     })();
 
@@ -755,6 +805,11 @@ function PDFViewer({ pdfBytes }: { pdfBytes: Uint8Array }) {
         }}
       >
         {error}
+        {reportCtx && (
+          <div style={{ maxWidth: 400, margin: "20px auto 0" }}>
+            <ReportNudge context={reportCtx} />
+          </div>
+        )}
       </div>
     );
   }

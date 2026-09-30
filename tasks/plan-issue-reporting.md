@@ -1,6 +1,6 @@
 # Plan — "Report a problem" (issue reporting to email)
 
-Status: **planned, awaiting approval** · Mockup: https://claude.ai/artifact/RX2JRGkrk6E1zN26rsPV7q
+Status: **built (session 15), delivery switched from email to Telegram** · Mockup: https://claude.ai/artifact/RX2JRGkrk6E1zN26rsPV7q
 
 ## Goal
 When something breaks (upload fails, viewer can't open a document), PrintSafe

@@ -12,6 +12,8 @@ import {
 } from "@/lib/analytics";
 import ThemeToggle from "@/components/ThemeToggle";
 import DemoVideo from "@/components/DemoVideo";
+import { ReportNudge, ReportLink } from "@/components/ReportIssue";
+import { errorNameOf, type ReportContext, type ReportStep } from "@/lib/report";
 import { formatBytes } from "@/lib/format";
 import {
   MAX_FILE_SIZE,
@@ -54,6 +56,8 @@ export default function UploadPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Set when an upload step fails in a way worth reporting — shows the nudge.
+  const [reportCtx, setReportCtx] = useState<ReportContext | null>(null);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [turnstileKey, setTurnstileKey] = useState(0);
   const [docCount, setDocCount] = useState(0);
@@ -81,6 +85,7 @@ export default function UploadPage() {
 
   const handleFile = useCallback((f: File) => {
     setError(null);
+    setReportCtx(null);
     if (f.size > MAX_FILE_SIZE) {
       setError("File is too large — maximum size is 25 MB.");
       return;
@@ -154,8 +159,13 @@ export default function UploadPage() {
   async function handleUpload() {
     if (!file || isUploading) return;
     let errorTracked = false;
+    // Which step failed, for the issue report. Advanced as each step starts.
+    let step: ReportStep = "encryption";
+    let status: number | undefined;
+    let errorName: string | undefined;
     setIsUploading(true);
     setError(null);
+    setReportCtx(null);
     capture("UploadStarted", {
       fileType: mimeToFileType(getEffectiveMime(file)),
       ttlLabel: ttlToLabel(ttl),
@@ -168,6 +178,7 @@ export default function UploadPage() {
 
       // Step 1: request a presigned R2 upload URL. Metadata only, no body —
       // rate limit + CAPTCHA are enforced server-side on this call.
+      step = "api";
       const res = await fetch("/api/upload", {
         method: "POST",
         headers: {
@@ -180,6 +191,7 @@ export default function UploadPage() {
         },
       });
       if (!res.ok) {
+        status = res.status;
         const data = await res.json().catch(() => ({}));
         capture("UploadError", {
           reason: res.status === 429 ? "ratelimit" : "api",
@@ -196,6 +208,7 @@ export default function UploadPage() {
 
       // Step 2: PUT the ciphertext directly to R2 — bypasses the Vercel
       // function body limit entirely, so files up to 25 MB actually make it through.
+      step = "storage";
       let putRes: Response;
       try {
         putRes = await fetch(uploadUrl, {
@@ -203,7 +216,8 @@ export default function UploadPage() {
           headers: { "Content-Type": "application/octet-stream" },
           body: ciphertext,
         });
-      } catch {
+      } catch (e) {
+        errorName = errorNameOf(e);
         capture("UploadError", { reason: "storage" });
         errorTracked = true;
         throw new Error(
@@ -211,18 +225,21 @@ export default function UploadPage() {
         );
       }
       if (!putRes.ok) {
+        status = putRes.status;
         capture("UploadError", { reason: "storage" });
         errorTracked = true;
         throw new Error("Upload to storage failed. Please try again.");
       }
 
       // Step 3: confirm the upload landed so the document becomes viewable.
+      step = "confirm";
       const confirmRes = await fetch("/api/upload/confirm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token }),
       });
       if (!confirmRes.ok) {
+        status = confirmRes.status;
         const data = await confirmRes.json().catch(() => ({}));
         capture("UploadError", { reason: "confirm" });
         errorTracked = true;
@@ -252,6 +269,19 @@ export default function UploadPage() {
     } catch (err: unknown) {
       if (!errorTracked) capture("UploadError", { reason: "encryption" });
       setError(err instanceof Error ? err.message : "Something went wrong.");
+      // A rate limit is working as intended — nothing to report.
+      if (status !== 429) {
+        setReportCtx({
+          source: "upload",
+          step,
+          page: "/",
+          status,
+          errorName: status ? undefined : (errorName ?? errorNameOf(err)),
+          fileType: mimeToFileType(getEffectiveMime(file)),
+          sizeBucket: sizeToFileSizeBucket(file.size),
+          ttl: ttlToLabel(ttl),
+        });
+      }
       setIsUploading(false);
       // Reset Turnstile so the user can solve it again on retry
       setCaptchaToken(null);
@@ -680,6 +710,7 @@ export default function UploadPage() {
                     e.stopPropagation();
                     setFile(null);
                     setError(null);
+                    setReportCtx(null);
                   }}
                   style={{
                     width: 28,
@@ -813,6 +844,8 @@ export default function UploadPage() {
               ⚠ {error}
             </div>
           )}
+
+          {reportCtx && <ReportNudge context={reportCtx} />}
 
           {/* CAPTCHA — only rendered when site key is configured */}
           {TURNSTILE_SITE_KEY && (
@@ -964,6 +997,7 @@ export default function UploadPage() {
               Vishal Agarwal
             </a>
           </p>
+          <ReportLink page="/" />
         </div>
       </footer>
     </div>
