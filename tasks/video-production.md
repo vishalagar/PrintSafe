@@ -161,11 +161,35 @@ the real clip length.
 
 ---
 
+## Rendering in a Claude Code cloud session (no Mac, no Hyperframes)
+
+Session 15 made `report-a-problem.mp4` (1920×1080, 35.8 s, narrated,
+captions burned in) entirely inside a cloud container. Source was not
+committed. It lives in the session scratchpad; the approach is:
+
+- **Composition:** one `index.html` with a `window.render(t)` function that
+  sets every element's style from the timestamp. No GSAP, no clock, so
+  frame N is always identical.
+- **Frames:** Playwright (preinstalled Chromium) calls `render(f/30)` and
+  screenshots each frame as JPEG. 1,073 frames take ~50 s.
+- **FFmpeg:** Playwright's bundled ffmpeg is VP8-only. Get a static build with
+  libx264 + AAC from the `imageio-ffmpeg` wheel on PyPI (unzip, use the binary).
+- **Voice:** Kokoro `af_heart` via `pip install kokoro-onnx`, model files from
+  the `thewh1teagle/kokoro-onnx` GitHub release (Hugging Face is blocked by the
+  network policy). One WAV per line → `adelay` + `amix` onto a timeline, so
+  scenes sync to exact line starts.
+- **Fonts:** the container only has DejaVu/Liberation. `npm i
+  @fontsource-variable/{fraunces,dm-sans,jetbrains-mono}` and `@font-face` them.
+- **Higgsfield TTS works but can't be used here:** results are served from
+  `*.cloudfront.net`, which the container's egress policy blocks.
+
+---
+
 ## Open items
 
 - **Nobody has listened to the narrated cut yet.** Levels were verified
   programmatically (voice sits ~14 dB above the ducked bed) but pronunciation of
   "AES", "UUID", "PrintSafe" is unconfirmed. Listen before publishing.
 - Videos say `printsafe.in` — keep in sync if the domain changes.
-- No captions/subtitles burned in yet. `hyperframes transcribe` + the
+- No captions burned into the session 13 cuts (the session 15 cut has them). `hyperframes transcribe` + the
   `embedded-captions` workflow could add them for silent autoplay feeds.
